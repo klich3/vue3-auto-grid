@@ -56,5 +56,5 @@ export default defineConfig({
 	optimizeDeps: {
 		exclude: ["worker"],
 	},
-	plugins: [imagetools(), ViteRequireContext, vue()],
+	plugins: [ViteRequireContext, vue()],
 });

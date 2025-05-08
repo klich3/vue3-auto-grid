@@ -9,6 +9,8 @@ When moving you can see where the item passes through the grid.
 ![Preview](images/preview.gif)
 
 
+Reference web site: https://nevflynn.com/?ref=sychev
+
 ## DEV
 
 Install: `$ npm i`
