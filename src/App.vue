@@ -1,15 +1,30 @@
 <template>
-	<div class="wrap debug" :class="{ grabbing: isGrabbing }">
-		<div class="cursor" ref="cursorRef"></div>
-		<div class="grid-container debug">
-			<div class="grid-layout" ref="gridLayoutRef" @dragover.prevent @drop="onDrop">
+	<div class="wrap" :class="{ grabbing: isGrabbing }">
+		<div class="cursor" ref="cursorRef" :style="cursorStyle"></div>
+		<div class="grid-container">
+			<div
+				class="grid-layout"
+				ref="gridLayoutRef"
+				@mousemove="onMouseMove"
+				@mouseup="onMouseUp"
+				@mouseleave="onMouseLeave"
+			>
 				<transition-group name="grid-transition" tag="div">
-					<div v-for="(item, index) in items" :key="item.id" :style="item.style"
-						:class="['grid-item', { drag: item.isDragging }]" draggable="true"
-						@dragstart="onDragStart(item, $event)" @dragend="onDragEnd(item, $event)"
-						@drag="onDrag(item, $event)">
-						{{ item.content }}
-					</div>
+					<grid-item
+						v-for="item in items"
+						:key="item.id"
+						:item="item"
+						:is-dragging="item.isDragging"
+						:style="getItemStyle(item)"
+						:ghost-position="getGhostPosition(item)"
+						@mousedown.stop.prevent="(e) => onMouseDown(e, item)"
+					>
+						<component
+							:is="getComponentType(item)"
+							:userData="item.userData"
+							:imageData="item.imageData"
+						/>
+					</grid-item>
 				</transition-group>
 			</div>
 		</div>
@@ -17,259 +32,264 @@
 </template>
 
 <script setup>
-//sample https://nevflynn.com/?ref=godly
-import { ref, reactive, nextTick, onMounted, onUnmounted } from "vue";
+import { ref, reactive, computed, nextTick, onMounted, onUnmounted } from "vue";
+import GridItem from "@/components/GridItem.vue";
+import UserGridItem from "@/components/UserGridItem.vue";
+import ImageGridItem from "@/components/ImageGridItem.vue";
 
-const cursorRef = ref(null);
-const isGrabbing = ref(false);
+import { useDraggable } from "@/composables/useDraggable";
+import { useMasonryLayout } from "@/composables/useMasonryLayout";
+
+import {
+	findClosestItemIndex,
+	moveArrayItem,
+	debounce,
+} from "@/utils/gridUtils";
+
 const items = reactive([
 	{
 		id: "1",
 		style: { width: "576px", height: "280px", background: "red" },
-		content: "Item 1",
+		type: "image",
+		imageData: {
+			src: "https://picsum.photos/576/280?random=1",
+			alt: "Imagen 1",
+			caption: "Imagen panorámica 1",
+		},
 	},
 	{
 		id: "2",
 		style: { width: "280px", height: "280px", background: "yellow" },
-		content: "Item 2",
+		type: "user",
+		userData: {
+			name: "Juan Pérez",
+			description: "Desarrollador Frontend",
+		},
 	},
 	{
 		id: "3",
 		style: { width: "280px", height: "576px", background: "green" },
-		content: "Item 3",
+		type: "image",
+		imageData: {
+			src: "https://picsum.photos/280/576?random=2",
+			alt: "Imagen 2",
+			caption: "Imagen vertical",
+		},
 	},
 	{
 		id: "9",
 		style: { width: "280px", height: "280px", background: "rose" },
-		content: "Item 9",
+		type: "user",
+		userData: {
+			name: "María García",
+			description: "Diseñadora UX",
+		},
 	},
 	{
 		id: "10",
 		style: { width: "576px", height: "280px", background: "pink" },
-		content: "Item 10",
+		type: "image",
+		imageData: {
+			src: "https://picsum.photos/576/280?random=3",
+			alt: "Imagen 3",
+		},
 	},
 	{
 		id: "4",
 		style: { width: "280px", height: "280px", background: "orange" },
-		content: "Item 4",
+		type: "user",
+		userData: {
+			name: "Carlos López",
+			description: "Product Manager",
+		},
 	},
 	{
 		id: "5",
 		style: { width: "280px", height: "280px", background: "blue" },
-		content: "Item 5",
+		type: "user",
+		userData: {
+			name: "Ana Martínez",
+			description: "Data Scientist",
+		},
 	},
 	{
 		id: "6",
 		style: { width: "280px", height: "576px", background: "grey" },
-		content: "Item 6",
+		type: "image",
+		imageData: {
+			src: "https://picsum.photos/280/576?random=4",
+			alt: "Imagen 4",
+			caption: "Foto vertical 2",
+		},
 	},
 	{
 		id: "7",
 		style: { width: "576px", height: "280px", background: "black" },
-		content: "Item 7",
+		type: "image",
+		imageData: {
+			src: "https://picsum.photos/576/280?random=5",
+			alt: "Imagen 5",
+			caption: "Panorámica oscura",
+		},
 	},
 	{
 		id: "8",
 		style: { width: "576px", height: "280px", background: "white" },
-		content: "Item 8",
+		type: "image",
+		imageData: {
+			src: "https://picsum.photos/576/280?random=6",
+			alt: "Imagen 6",
+		},
 	},
 ]);
 
+const cursorRef = ref(null);
 const gridLayoutRef = ref(null);
-const draggingItem = ref(null);
-const gutter = 16;
-const numColumns = ref(0);
+const gutter = ref(16);
 
-const updateMasonryLayout = () => {
-	const containerWidth = gridLayoutRef.value.offsetWidth;
-	numColumns.value = Math.floor(containerWidth / (280 + gutter));
+const {
+	draggingItem,
+	isGrabbing,
+	cursorPosition,
+	ghostPosition,
+	dragOffset,
+	startDrag,
+	processDrag,
+	endDrag,
+} = useDraggable({
+	onDragStart: (item) => {
+		console.log("Drag started:", item);
+	},
+	onDrag: (item, event) => {
+		const gridRect = gridLayoutRef.value.getBoundingClientRect();
+		const relativeX = event.clientX - gridRect.left;
+		const relativeY = event.clientY - gridRect.top;
 
-	// Inicializa las alturas de las columnas
-	const columnHeights = new Array(numColumns.value).fill(0);
+		const draggedIndex = items.findIndex((i) => i.id === item.id);
+		const targetIndex = findClosestItemIndex(
+			relativeX,
+			relativeY,
+			items,
+			gridLayoutRef.value,
+			item.id
+		);
 
-	items.forEach((item) => {
-		//item.isSmall = containerWidth < parseInt(item.style.width) ? true : false;
+		if (
+			draggedIndex !== targetIndex &&
+			targetIndex >= 0 &&
+			targetIndex < items.length
+		) {
+			moveArrayItem(items, draggedIndex, targetIndex);
 
-		const itemWidth = parseInt(item.style.width);
-		const itemHeight = parseInt(item.style.height);
+			nextTick(() => {
+				updateLayout();
 
-		item.style.width = `${itemWidth}px`;
-		item.style.height = `${itemHeight}px`;
-
-		const colSpan = Math.ceil(itemWidth / (280 + gutter));
-
-		// Encuentra la columna con la menor altura
-		let minColumnIndex = 0;
-		let minHeight = Number.MAX_VALUE;
-		for (let i = 0; i <= numColumns.value - colSpan; i++) {
-			const maxHeightInSpan = Math.max(...columnHeights.slice(i, i + colSpan));
-			if (maxHeightInSpan < minHeight) {
-				minHeight = maxHeightInSpan;
-				minColumnIndex = i;
-			}
+				const foundItem = items[targetIndex];
+				if (foundItem) {
+					ghostPosition.value = {
+						left: parseInt(foundItem.style.left || 0),
+						top: parseInt(foundItem.style.top || 0),
+					};
+				}
+			});
 		}
+	},
+	onDragEnd: () => {
+		nextTick(() => {
+			updateLayout();
+		});
+	},
+});
 
-		// Calcular la posición de izquierda y arriba para el elemento
-		const left = minColumnIndex * (280 + gutter);
-		const top = minHeight;
+const { numColumns, calculateResponsiveLayout, updateLayout } =
+	useMasonryLayout(items, gridLayoutRef, gutter.value);
 
-		item.style.left = `${left}px`;
-		item.style.top = `${top}px`;
+const cursorStyle = computed(() => {
+	return {
+		top: `${cursorPosition.value.y}px`,
+		left: `${cursorPosition.value.x}px`,
+		display: isGrabbing.value ? "block" : "none",
+	};
+});
 
-		// Actualizar las alturas de las columnas para las que el elemento ocupa espacio
-		for (let i = minColumnIndex; i < minColumnIndex + colSpan; i++) {
-			columnHeights[i] = top + itemHeight + gutter;
-		}
-	});
-
-	// Ajustar la altura del contenedor para abarcar todo el contenido
-	const maxHeight = Math.max(...columnHeights);
-	gridLayoutRef.value.style.height = `${maxHeight}px`;
+const getGhostPosition = (item) => {
+	if (!item.isDragging) {
+		return { left: 0, top: 0 };
+	}
+	return ghostPosition.value;
 };
 
-const onDragStart = (item, event) => {
-	item.isDragging = true;
-	draggingItem.value = item;
-	isGrabbing.value = true;
-
-	draggingItem.value.startX = event.clientX;
-	draggingItem.value.startY = event.clientY;
-	draggingItem.value.initialTop = parseInt(item.style.top);
-	draggingItem.value.initialLeft = parseInt(item.style.left);
-};
-
-const onDrag = (item, event) => {
-	if (draggingItem.value) {
-		// Calcular las diferencias en las coordenadas del ratón
-		const dx = event.clientX - draggingItem.value.startX;
-		const dy = event.clientY - draggingItem.value.startY;
-
-		// Ajustar la posición del elemento arrastrado basándose en las diferencias calculadas
-		const newLeft = draggingItem.value.initialLeft + dx;
-		const newTop = draggingItem.value.initialTop + dy;
-
-		draggingItem.value.style.left = `${newLeft}px`;
-		draggingItem.value.style.top = `${newTop}px`;
-
-		// Actualizar la posición del cursor visual para dar una sensación de arrastre
-		cursorRef.value.style.top = `${event.pageY}px`;
-		cursorRef.value.style.left = `${event.pageX}px`;
-
-		// Recalcular la posición de los elementos y actualizar la cuadrícula
-		const draggedIndex = items.findIndex((i) => i.id === draggingItem.value.id);
-		const targetIndex = calculateTargetIndex(newLeft, newTop);
-
-		// Mover el elemento en el array y actualizar el diseño
-		moveArrayItem(draggedIndex, targetIndex);
-		updateMasonryLayout();
+const getComponentType = (item) => {
+	switch (item.type) {
+		case "user":
+			return UserGridItem;
+		case "image":
+			return ImageGridItem;
+		default:
+			return null;
 	}
 };
 
-const onDragEnd = (item, event) => {
-	item.isDragging = false;
-	isGrabbing.value = false;
-	draggingItem.value = null;
+const getItemStyle = (item) => {
+	if (item.isDragging) {
+		return {
+			...item.style,
+			left: `${cursorPosition.value.x - dragOffset.value.x}px`,
+			top: `${cursorPosition.value.y - dragOffset.value.y}px`,
+			zIndex: 100,
+			pointerEvents: "none",
+		};
+	}
+
+	if (window.innerWidth <= 768 && item.mobileStyle) {
+		return {
+			...item.style,
+			width: item.mobileStyle.width,
+			height: item.mobileStyle.height,
+		};
+	}
+
+	return item.style;
 };
 
-const calculateTargetIndex = (left, top) => {
-	const row = Math.floor(top / (parseInt(items[0].style.height) + gutter));
-	const column = Math.floor(left / (parseInt(items[0].style.width) + gutter));
-	return Math.min(row * numColumns.value + column, items.length - 1);
-};
+const onMouseDown = (event, item) => startDrag(item, event);
+const onMouseMove = (event) => processDrag(event, gridLayoutRef.value);
+const onMouseUp = () => endDrag();
+const onMouseLeave = () => endDrag();
 
-const moveArrayItem = (fromIndex, toIndex) => {
-	const element = items.splice(fromIndex, 1)[0];
-	items.splice(toIndex, 0, element);
-};
-
-const debounce = (func, wait) => {
-	let timeout;
-	return (...args) => {
-		clearTimeout(timeout);
-		timeout = setTimeout(() => func.apply(this, args), wait);
-	};
-};
-
-// Crear la función debounced
-const debouncedUpdateMasonryLayout = debounce(() => {
-	updateMasonryLayout();
-}, 300);
-
-// Crear el ResizeObserver con la función debounced
-const resizeObserver = new ResizeObserver(() => {
-	debouncedUpdateMasonryLayout();
-});
+const debouncedUpdateLayout = debounce(() => updateLayout(), 300);
+const resizeObserver = new ResizeObserver(() => calculateResponsiveLayout());
 
 onMounted(() => {
 	nextTick(() => {
-		updateMasonryLayout(); // Inicializa el layout
 		if (gridLayoutRef.value) {
-			resizeObserver.observe(gridLayoutRef.value); // Observa el contenedor
+			calculateResponsiveLayout();
+			resizeObserver.observe(gridLayoutRef.value);
 		}
 	});
 });
 
 onUnmounted(() => {
 	if (gridLayoutRef.value) {
-		resizeObserver.unobserve(gridLayoutRef.value); // Deja de observar
+		resizeObserver.unobserve(gridLayoutRef.value);
 	}
 });
 </script>
 
 <style scoped>
-.wrap {
-	will-change: transform, opacity;
-	height: 100%;
-}
-
 .grid-container {
 	max-width: 1200px;
 	position: relative;
-	margin: -16px auto 0px;
-	padding: 80px 0;
+	margin: 0 auto;
+	padding: 40px 0;
+	width: 100%;
 }
 
 .grid-layout {
 	position: relative;
 	width: 100%;
-	transition: height 0.2s ease;
-}
-
-.grid-item {
-	overflow: hidden;
-	border-radius: 8px;
-	user-select: none;
-	position: absolute;
-	transition: all 0.2s ease;
-	background-color: antiquewhite;
-	cursor: grab;
-	box-sizing: border-box;
-	max-width: 100%;
-	max-height: 100%;
-}
-
-.grid-item.drag {
-	position: absolute;
-	background-color: #f00;
-	border: 2px dashed #000;
-}
-
-.grabbing,
-.grabbing .grid-item {
-	cursor: grabbing;
-}
-
-.cursor {
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 40px;
-	height: 40px;
-	border-radius: 50%;
-	background: rgba(255, 0, 0, 0.9);
-	z-index: 99;
-	touch-action: none;
-	pointer-events: none;
+	transition: height 0.3s ease;
+	min-height: 300px;
 }
 
 .grid-transition-move {
@@ -287,27 +307,23 @@ onUnmounted(() => {
 	transform: scale(0.9);
 }
 
-.grid-item-ghost {
-	opacity: 0.5;
-	background-color: #c8ebfb !important;
-	border: 2px dashed #2196F3 !important;
-}
-
-@media (max-width: 1024px) {
+/* Estilos responsive */
+@media (max-width: 1280px) {
 	.grid-container {
-		max-width: 1200px;
+		max-width: 960px;
 	}
 }
 
 @media (max-width: 960px) {
 	.grid-container {
-		max-width: 800px;
+		max-width: 720px;
 	}
 }
 
 @media (max-width: 768px) {
 	.grid-container {
-		max-width: 768px;
+		max-width: 100%;
+		padding: 20px 0;
 	}
 }
 </style>
