@@ -1,0 +1,68 @@
+{
+	"name": "auto-grid-sychev",
+	"version": "0.0.1",
+	"description": "auto grid",
+	"private": true,
+	"type": "module",
+	"publicPath": "/",
+	"assetsPath": "src/assets/",
+	"pwa_name": "Sychev",
+	"scripts": {
+		"serve": "vite --config vite.config.debug.js",
+		"serve-network": "vite --config vite.config.debug.js --host",
+		"preview": "vite preview",
+		"build-debug": "vite build --config vite.config.debug.js",
+		"build": "vite build --config vite.config.js",
+		"build-prod": "npm version patch && npm run build",
+		"build-dev-deploy": "npm version patch && npm run build && npm run deploy-dev",
+		"build-prod-deploy": "npm version patch && npm run build && npm run deploy-prod",
+		"deploy-dev": "scripts/deploy.sh twooneone.xyz sychev.xyz/dev/ ./dist",
+		"deploy-prod": "scripts/deploy.sh twooneone.xyz sychev.xyz ./dist",
+		"lint": "vue-cli-service lint",
+		"lint-fix": "eslint --ext .js,.vue src --fix"
+	},
+	"keywords": [
+		"html",
+		"css",
+		"auto grid"
+	],
+	"author": "Anton Sychev <anton at sychev dot xyz> (https://sychev.xyz)",
+	"license": "MIT",
+	"dependencies": {
+		"normalize.css": "^8.0.1",
+		"vue": "^3.3.4"
+	},
+	"devDependencies": {
+		"@originjs/vite-plugin-require-context": "^1.0.9",
+		"@vitejs/plugin-vue": "^5.1.1",
+		"@vue/compiler-sfc": "^3.2.31",
+		"960.css": "^1.0.4",
+		"autoprefixer": "^10.4.19",
+		"credits-log": "^1.0.2",
+		"postcss": "^8.4.24",
+		"rollup-plugin-strip-code": "^0.2.7",
+		"rollup-plugin-uglify": "^4.0.0",
+		"sass": "^1.77.6",
+		"unplugin-auto-import": "^0.18.2",
+		"vite": "^5.3.5",
+		"vite-plugin-style-import": "^2.0.0",
+		"vue-loader": "^17.0.0",
+		"vue-stripe-js": "^1.0.0",
+		"vue-style-loader": "^4.1.3",
+		"vue-template-compiler": "^0.1.0"
+	},
+	"browserslist": [
+		"> 1%",
+		"last 2 versions",
+		"not dead"
+	],
+	"projectName": "Sychev",
+	"credits": [
+		"0010003701120010003700980010001096089600819596089604960881959608960096008195960896179608",
+		"8195960896009600819596089617960800109604960881959617960896178195960896049604819596089600",
+		"9608819596089608960481959600960496000010003700970010003700990010003701080010998600329480",
+		"9480948094809480948094809480948094809480948094809480948094809480948094809480948094809480",
+		"9480948094809480948094800010006700820069006800730084008300450076007900710032900400320050",
+		"00490049"
+	]
+}
