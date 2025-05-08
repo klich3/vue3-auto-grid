@@ -1,9 +1,9 @@
 <template>
-	<div class="wrap" :class="{ grabbing: isGrabbing }">
+	<div class="wrap debug" :class="{ grabbing: isGrabbing }">
 		<div class="cursor" ref="cursorRef" :style="cursorStyle"></div>
-		<div class="grid-container">
+		<div class="grid-container debug">
 			<div
-				class="grid-layout"
+				class="grid-layout debug"
 				ref="gridLayoutRef"
 				@mousemove="onMouseMove"
 				@mouseup="onMouseUp"
@@ -17,6 +17,7 @@
 						:is-dragging="item.isDragging"
 						:style="getItemStyle(item)"
 						:ghost-position="getGhostPosition(item)"
+						:data-key="item.id"
 						@mousedown.stop.prevent="(e) => onMouseDown(e, item)"
 					>
 						<component
@@ -30,8 +31,13 @@
 		</div>
 	</div>
 </template>
-
 <script setup>
+/*
+Grid maxion de 4 columnas con elemento peuqeño
+o dos grandes uno al lado de
+
+*/
+
 import { ref, reactive, computed, nextTick, onMounted, onUnmounted } from "vue";
 import GridItem from "@/components/GridItem.vue";
 import UserGridItem from "@/components/UserGridItem.vue";
@@ -46,102 +52,8 @@ import {
 	debounce,
 } from "@/utils/gridUtils";
 
-const items = reactive([
-	{
-		id: "1",
-		style: { width: "576px", height: "280px", background: "red" },
-		type: "image",
-		imageData: {
-			src: "https://picsum.photos/576/280?random=1",
-			alt: "Imagen 1",
-			caption: "Imagen panorámica 1",
-		},
-	},
-	{
-		id: "2",
-		style: { width: "280px", height: "280px", background: "yellow" },
-		type: "user",
-		userData: {
-			name: "Juan Pérez",
-			description: "Desarrollador Frontend",
-		},
-	},
-	{
-		id: "3",
-		style: { width: "280px", height: "576px", background: "green" },
-		type: "image",
-		imageData: {
-			src: "https://picsum.photos/280/576?random=2",
-			alt: "Imagen 2",
-			caption: "Imagen vertical",
-		},
-	},
-	{
-		id: "9",
-		style: { width: "280px", height: "280px", background: "rose" },
-		type: "user",
-		userData: {
-			name: "María García",
-			description: "Diseñadora UX",
-		},
-	},
-	{
-		id: "10",
-		style: { width: "576px", height: "280px", background: "pink" },
-		type: "image",
-		imageData: {
-			src: "https://picsum.photos/576/280?random=3",
-			alt: "Imagen 3",
-		},
-	},
-	{
-		id: "4",
-		style: { width: "280px", height: "280px", background: "orange" },
-		type: "user",
-		userData: {
-			name: "Carlos López",
-			description: "Product Manager",
-		},
-	},
-	{
-		id: "5",
-		style: { width: "280px", height: "280px", background: "blue" },
-		type: "user",
-		userData: {
-			name: "Ana Martínez",
-			description: "Data Scientist",
-		},
-	},
-	{
-		id: "6",
-		style: { width: "280px", height: "576px", background: "grey" },
-		type: "image",
-		imageData: {
-			src: "https://picsum.photos/280/576?random=4",
-			alt: "Imagen 4",
-			caption: "Foto vertical 2",
-		},
-	},
-	{
-		id: "7",
-		style: { width: "576px", height: "280px", background: "black" },
-		type: "image",
-		imageData: {
-			src: "https://picsum.photos/576/280?random=5",
-			alt: "Imagen 5",
-			caption: "Panorámica oscura",
-		},
-	},
-	{
-		id: "8",
-		style: { width: "576px", height: "280px", background: "white" },
-		type: "image",
-		imageData: {
-			src: "https://picsum.photos/576/280?random=6",
-			alt: "Imagen 6",
-		},
-	},
-]);
+import itesmData from "@/assets/items.json";
+const items = reactive(itesmData || []);
 
 const cursorRef = ref(null);
 const gridLayoutRef = ref(null);
@@ -159,11 +71,32 @@ const {
 } = useDraggable({
 	onDragStart: (item) => {
 		console.log("Drag started:", item);
+		// Guardar la posición original del elemento al iniciar el arrastre
+		if (item && item.style) {
+			// Guardamos la posición original para el ghost
+			item.originalPosition = {
+				left: item.style.left,
+				top: item.style.top,
+			};
+
+			console.log("Drag started on item:", item.id);
+		}
 	},
 	onDrag: (item, event) => {
+		if (!item) return;
+
 		const gridRect = gridLayoutRef.value.getBoundingClientRect();
 		const relativeX = event.clientX - gridRect.left;
 		const relativeY = event.clientY - gridRect.top;
+
+		// Actualizar la posición del cursor para el elemento arrastrado
+		cursorPosition.value = {
+			x: event.clientX,
+			y: event.clientY,
+		};
+
+		// Log para depurar la posición
+		console.log(`Cursor position: X=${relativeX}, Y=${relativeY}`);
 
 		const draggedIndex = items.findIndex((i) => i.id === item.id);
 		const targetIndex = findClosestItemIndex(
@@ -174,29 +107,40 @@ const {
 			item.id
 		);
 
+		console.log(
+			`Índice actual: ${draggedIndex}, Índice objetivo: ${targetIndex}`
+		);
+
+		// Sólo reordenar elementos si cambiamos a una nueva posición
 		if (
 			draggedIndex !== targetIndex &&
 			targetIndex >= 0 &&
 			targetIndex < items.length
 		) {
+			console.log(`Reordenando: ${draggedIndex} -> ${targetIndex}`);
+
+			// Mover el elemento en el array
 			moveArrayItem(items, draggedIndex, targetIndex);
 
+			// Actualizar el layout inmediatamente
 			nextTick(() => {
-				updateLayout();
-
-				const foundItem = items[targetIndex];
-				if (foundItem) {
-					ghostPosition.value = {
-						left: parseInt(foundItem.style.left || 0),
-						top: parseInt(foundItem.style.top || 0),
-					};
-				}
+				// Forzar un recálculo completo del layout
+				calculateResponsiveLayout();
+				console.log("Layout actualizado después de reordenar");
 			});
 		}
 	},
-	onDragEnd: () => {
+	onDragEnd: (item) => {
+		if (item) {
+			console.log("Drag ended on item:", item.id);
+			// Limpiar la posición original al finalizar
+			delete item.originalPosition;
+		}
+
+		// Actualizar el layout después de soltar
 		nextTick(() => {
 			updateLayout();
+			console.log("Layout actualizado después de soltar");
 		});
 	},
 });
@@ -213,10 +157,12 @@ const cursorStyle = computed(() => {
 });
 
 const getGhostPosition = (item) => {
-	if (!item.isDragging) {
-		return { left: 0, top: 0 };
-	}
-	return ghostPosition.value;
+	if (!item.isDragging) return { left: 0, top: 0 };
+
+	return {
+		left: parseInt(ghostPosition.value.left || 0),
+		top: parseInt(ghostPosition.value.top || 0),
+	};
 };
 
 const getComponentType = (item) => {
@@ -232,24 +178,27 @@ const getComponentType = (item) => {
 
 const getItemStyle = (item) => {
 	if (item.isDragging) {
+		// El elemento que se arrastra sigue al cursor
 		return {
-			...item.style,
+			position: "absolute",
 			left: `${cursorPosition.value.x - dragOffset.value.x}px`,
 			top: `${cursorPosition.value.y - dragOffset.value.y}px`,
+			width: item.style.width,
+			height: item.style.height,
 			zIndex: 100,
 			pointerEvents: "none",
+			transform: "scale(1.05)",
+			boxShadow: "0 10px 20px rgba(0, 0, 0, 0.2)",
+			background: item.style.background ? item.style.background : "white",
+			opacity: 0.9,
 		};
 	}
 
-	if (window.innerWidth <= 768 && item.mobileStyle) {
-		return {
-			...item.style,
-			width: item.mobileStyle.width,
-			height: item.mobileStyle.height,
-		};
-	}
-
-	return item.style;
+	// Para elementos normales, asegúrate de que tengan posición absoluta
+	return {
+		...item.style,
+		position: "absolute",
+	};
 };
 
 const onMouseDown = (event, item) => startDrag(item, event);
@@ -278,11 +227,9 @@ onUnmounted(() => {
 
 <style scoped>
 .grid-container {
-	max-width: 1200px;
 	position: relative;
 	margin: 0 auto;
 	padding: 40px 0;
-	width: 100%;
 }
 
 .grid-layout {

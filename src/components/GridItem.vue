@@ -1,11 +1,13 @@
 <template>
-	<div
-		:style="mergedStyle"
-		:class="['grid-item', { dragging: isDragging }]"
-		@mousedown.prevent="handleMouseDown"
-	>
-		<slot v-bind="{ drag: isDragging }"></slot>
-		<div v-if="isDragging" class="ghost-element" :style="ghostStyle"></div>
+	<div :style="mergedStyle" :class="['grid-item', { dragging: isDragging }]">
+		<div v-if="isDragging" class="ghost-element" :style="ghostStyle">
+			<slot></slot>
+		</div>
+
+		<!-- Este es el contenido real que se mueve con el cursor -->
+		<div class="grid-item-content" v-if="!isDragging || true">
+			<slot></slot>
+		</div>
 	</div>
 </template>
 
@@ -13,22 +15,10 @@
 import { defineProps, defineEmits, computed } from "vue";
 
 const props = defineProps({
-	item: {
-		type: Object,
-		required: true,
-	},
-	isDragging: {
-		type: Boolean,
-		default: false,
-	},
-	style: {
-		type: Object,
-		required: true,
-	},
-	ghostPosition: {
-		type: Object,
-		default: () => ({ left: 0, top: 0 }),
-	},
+	item: Object,
+	isDragging: Boolean,
+	ghostPosition: Object,
+	style: Object,
 });
 
 const emit = defineEmits(["dragStart", "dragEnd", "drag"]);
@@ -55,14 +45,14 @@ const ghostStyle = computed(() => {
 		position: "absolute",
 		width: props.style.width,
 		height: props.style.height,
-		left: `${props.ghostPosition?.left || 0}px`,
-		top: `${props.ghostPosition?.top || 0}px`,
-		opacity: 0.4,
-		background: "#aaa",
-		zIndex: 90,
+		opacity: 0.5,
+		background: "rgba(220, 220, 220, 0.7)",
+		borderRadius: props.style.borderRadius || "inherit",
+		boxShadow: "none",
 		pointerEvents: "none",
-		borderRadius: "36px",
-		boxShadow: "inset 0 0 0 2px rgba(255, 255, 255, 0.5)",
+		// Mantener la posición original del elemento
+		left: props.item.originalPosition?.left || props.style.left || "0px",
+		top: props.item.originalPosition?.top || props.style.top || "0px",
 	};
 });
 
