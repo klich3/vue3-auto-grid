@@ -195,12 +195,8 @@ function handleDrag(item, event) {
 
 function handleDragEnd(item) {
 	if (!item) return;
-
-	const itemId = item.id;
 	delete item.originalPosition;
-
 	cleanupDisplacedState();
-
 	finalizeDragAndLock(item);
 	targetGridPosition.value = null;
 }
@@ -209,9 +205,9 @@ function cleanupDisplacedState() {
 	items.forEach((item) => {
 		if (item.wasDisplaced) {
 			item.wasDisplacedEnding = true;
+			item.wasDisplaced = false;
 
 			setTimeout(() => {
-				item.wasDisplaced = false;
 				item.wasDisplacedEnding = false;
 			}, 350);
 		}
@@ -301,6 +297,15 @@ function getItemStyle(item) {
 	};
 }
 
+const onMouseUp = () => {
+	try {
+		endDrag();
+	} catch (error) {
+		console.error("Error en onMouseUp:", error);
+		resetDragState();
+	}
+};
+
 const onMouseDown = (event, item) => {
 	try {
 		startDrag(item, event);
@@ -317,25 +322,6 @@ const onMouseMove = (event) => {
 	}
 };
 
-const onMouseUp = () => {
-	try {
-		if (draggingItem.value) {
-			const item = draggingItem.value;
-			endDrag();
-
-			setTimeout(() => {
-				items.forEach((i) => {
-					i.wasDisplaced = false;
-					i.wasDisplacedEnding = false;
-				});
-			}, 400);
-		}
-	} catch (error) {
-		console.error("Error en onMouseUp:", error);
-		resetDragState();
-	}
-};
-
 const onMouseLeave = () => {
 	try {
 		endDrag();
@@ -343,18 +329,6 @@ const onMouseLeave = () => {
 		console.error("Error en onMouseLeave:", error);
 		resetDragState();
 	}
-};
-
-const cleanupAfterDrag = () => {
-	nextTick(() => {
-		items.forEach((item) => {
-			if (item.wasDisplaced && !item.isDragging) {
-				setTimeout(() => {
-					item.wasDisplaced = false;
-				}, 300);
-			}
-		});
-	});
 };
 
 const resizeObserver = new ResizeObserver(

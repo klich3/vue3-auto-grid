@@ -252,7 +252,8 @@ export function useMasonryLayout(items, containerRef, gutter = 16) {
 		displacedId = null,
 		fixedItemId = null
 	) => {
-		if (!containerRef.value || isLayoutUpdating) return;
+		if (!containerRef.value || isLayoutUpdating || layoutUpdateScheduled)
+			return;
 
 		isLayoutUpdating = true;
 
@@ -479,15 +480,22 @@ export function useMasonryLayout(items, containerRef, gutter = 16) {
 		}
 	};
 
+	let layoutUpdateScheduled = false;
+
 	const finalizeDragAndLock = (draggedItem) => {
 		if (!ghostPosition.value || !draggedItem) return;
 
-		if (isLayoutUpdating) {
-			setTimeout(() => finalizeDragAndLock(draggedItem), 50);
+		if (updateTimeoutId) {
+			clearTimeout(updateTimeoutId);
+			updateTimeoutId = null;
+		}
+
+		if (isLayoutUpdating || layoutUpdateScheduled) {
+			console.log("Actualización de layout ya en curso, no se iniciará otra.");
 			return;
 		}
 
-		isLayoutUpdating = true;
+		layoutUpdateScheduled = true;
 
 		try {
 			const { col, row } = ghostPosition.value;
@@ -517,22 +525,31 @@ export function useMasonryLayout(items, containerRef, gutter = 16) {
 			ghostPosition.value = null;
 			displacedItemId.value = null;
 
-			processRemainingItems(gridMatrix, maxRows, [], draggedItem.id, false);
+			updateTimeoutId = setTimeout(() => {
+				isLayoutUpdating = true;
+				layoutUpdateScheduled = false;
 
-			updateGridHeight(gridMatrix, maxRows);
-			updatePreviousPositions();
-			draggedItemId.value = null;
-			setTimeout(() => {
-				draggedItem.style.transition = "none";
-				draggedItem.style.zIndex = "";
-			}, 150);
-		} finally {
-			setTimeout(() => {
-				isLayoutUpdating = false;
-			}, 25);
+				try {
+					processRemainingItems(gridMatrix, maxRows, [], draggedItem.id, false);
+
+					updateGridHeight(gridMatrix, maxRows);
+					updatePreviousPositions();
+				} finally {
+					draggedItemId.value = null;
+					setTimeout(() => {
+						if (draggedItem) {
+							draggedItem.style.transition = "none";
+							draggedItem.style.zIndex = "";
+						}
+						isLayoutUpdating = false;
+					}, 250);
+				}
+			}, 20);
+		} catch (error) {
+			console.error("Error durante finalizeDragAndLock:", error);
+			layoutUpdateScheduled = false;
 		}
 	};
-
 	return {
 		numColumns,
 		gridHeight,
