@@ -2,52 +2,44 @@ export function findClosestItemIndex(x, y, items, container, excludeId) {
 	let minDistance = Infinity;
 	let closestIndex = -1;
 
-	// Obtener todos los elementos grid-item
 	const gridItems = Array.from(container.querySelectorAll(".grid-item"));
 
+	//eslint-disable-next-line no-console
 	console.log(`Buscando elemento más cercano a (${x}, ${y})`);
+	//eslint-disable-next-line no-console
 	console.log(`Elementos disponibles: ${gridItems.length}`);
 
 	items.forEach((item, index) => {
-		// Saltamos el elemento que se está arrastrando
-		if (item.id === excludeId) {
-			console.log(`Ignorando item ${item.id} (elemento arrastrado)`);
-			return;
-		}
+		if (item.id === excludeId) return;
 
-		// Buscamos el elemento en el DOM que coincide con este item
 		const itemEl = gridItems.find(
 			(el) => el.getAttribute("data-key") === String(item.id)
 		);
 
-		if (!itemEl) {
-			console.warn(`No se encontró el elemento DOM para el item ${item.id}`);
-			return;
-		}
+		if (!itemEl) return;
 
 		const rect = itemEl.getBoundingClientRect();
 		const containerRect = container.getBoundingClientRect();
 
-		// Coordenadas del centro del item
 		const itemCenterX = rect.left - containerRect.left + rect.width / 2;
 		const itemCenterY = rect.top - containerRect.top + rect.height / 2;
 
-		// Calcular distancia euclídea al punto de arrastre
 		const distance = Math.sqrt(
 			Math.pow(x - itemCenterX, 2) + Math.pow(y - itemCenterY, 2)
 		);
 
+		//eslint-disable-next-line no-console
 		console.log(
 			`Ítem ${item.id}: distancia = ${distance}, centro en (${itemCenterX}, ${itemCenterY})`
 		);
 
-		// Actualizar si encontramos una distancia menor
 		if (distance < minDistance) {
 			minDistance = distance;
 			closestIndex = index;
 		}
 	});
 
+	//eslint-disable-next-line no-console
 	console.log(
 		`Elemento más cercano encontrado en índice: ${closestIndex}, distancia: ${minDistance}`
 	);
@@ -72,5 +64,15 @@ export function debounce(func, wait) {
 		};
 		clearTimeout(timeout);
 		timeout = setTimeout(later, wait);
+	};
+}
+
+export function getGridPosition(x, y, cellSize, gutter, numColumns) {
+	const col = Math.floor(x / (cellSize + gutter));
+	const row = Math.floor(y / (cellSize + gutter));
+
+	return {
+		col: Math.min(Math.max(0, col), numColumns - 1),
+		row: Math.max(0, row),
 	};
 }

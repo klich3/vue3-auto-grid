@@ -1,18 +1,17 @@
 <template>
 	<div :style="mergedStyle" :class="['grid-item', { dragging: isDragging }]">
-		<div v-if="isDragging" class="ghost-element" :style="ghostStyle">
-			<slot></slot>
+		<div v-if="isDragging" class="ghost-element">
+			<div class="ghost-inner"></div>
 		</div>
 
-		<!-- Este es el contenido real que se mueve con el cursor -->
-		<div class="grid-item-content" v-if="!isDragging || true">
+		<div class="grid-item-content">
 			<slot></slot>
 		</div>
 	</div>
 </template>
 
 <script setup>
-import { defineProps, defineEmits, computed } from "vue";
+import { defineProps, computed } from "vue";
 
 const props = defineProps({
 	item: Object,
@@ -20,8 +19,6 @@ const props = defineProps({
 	ghostPosition: Object,
 	style: Object,
 });
-
-const emit = defineEmits(["dragStart", "dragEnd", "drag"]);
 
 const mergedStyle = computed(() => {
 	if (!props.isDragging) {
@@ -35,36 +32,15 @@ const mergedStyle = computed(() => {
 		...props.style,
 		zIndex: 100,
 		transition: "none",
-		opacity: 0.8,
 		pointerEvents: "none",
 	};
 });
-
-const ghostStyle = computed(() => {
-	return {
-		position: "absolute",
-		width: props.style.width,
-		height: props.style.height,
-		opacity: 0.5,
-		background: "rgba(220, 220, 220, 0.7)",
-		borderRadius: props.style.borderRadius || "inherit",
-		boxShadow: "none",
-		pointerEvents: "none",
-		// Mantener la posición original del elemento
-		left: props.item.originalPosition?.left || props.style.left || "0px",
-		top: props.item.originalPosition?.top || props.style.top || "0px",
-	};
-});
-
-const handleMouseDown = (event) => {
-	emit("dragStart", props.item, event);
-};
 </script>
 
 <style scoped>
 .grid-item {
 	overflow: hidden;
-	border-radius: 36px;
+	border-radius: 8px;
 	user-select: none;
 	position: absolute;
 	transition: all 0.2s ease;
@@ -75,12 +51,10 @@ const handleMouseDown = (event) => {
 	max-height: 100%;
 	border: 1px solid rgba(0, 0, 0, 0.1);
 	-webkit-user-drag: none;
-	/* Deshabilitar arrastre nativo */
 }
 
 .grid-item.dragging {
-	opacity: 0.95;
-	transform: scale(1.02);
+	opacity: 1;
 	z-index: 100;
 	box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
 	cursor: grabbing;
@@ -88,9 +62,27 @@ const handleMouseDown = (event) => {
 
 .ghost-element {
 	position: absolute;
-	border-radius: 36px;
-	background-color: rgba(100, 100, 100, 0.3);
-	box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.5);
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	border-radius: 8px;
+	background-color: rgba(100, 100, 100, 0.2);
+	border: 2px dashed rgba(80, 80, 80, 0.4);
 	pointer-events: none;
+}
+
+.ghost-inner {
+	width: 100%;
+	height: 100%;
+	opacity: 0.3;
+	background: rgba(150, 150, 150, 0.1);
+}
+
+.grid-item-content {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
 }
 </style>

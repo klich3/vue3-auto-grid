@@ -14,7 +14,6 @@ export function useDraggable(options = {}) {
 		item.isDragging = true;
 		isGrabbing.value = true;
 
-		// Calcular el offset donde se hizo clic en el elemento
 		const rect = event.currentTarget.getBoundingClientRect();
 		dragOffset.value = {
 			x: event.clientX - rect.left,
@@ -54,7 +53,6 @@ export function useDraggable(options = {}) {
 			options.onDragEnd(item);
 		}
 
-		// Limpiar los estados
 		draggingItem.value = null;
 		isGrabbing.value = false;
 	};

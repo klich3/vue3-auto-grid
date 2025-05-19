@@ -16,7 +16,7 @@
 						:item="item"
 						:is-dragging="item.isDragging"
 						:style="getItemStyle(item)"
-						:ghost-position="getGhostPosition(item)"
+						:ghost-position="ghostPosition"
 						:data-key="item.id"
 						@mousedown.stop.prevent="(e) => onMouseDown(e, item)"
 					>
@@ -27,17 +27,17 @@
 						/>
 					</grid-item>
 				</transition-group>
+
+				<div
+					v-if="isGrabbing && targetGridPosition"
+					class="grid-ghost-indicator"
+					:style="getGhostIndicatorStyle()"
+				></div>
 			</div>
 		</div>
 	</div>
 </template>
 <script setup>
-/*
-Grid maxion de 4 columnas con elemento peuqeño
-o dos grandes uno al lado de
-
-*/
-
 import { ref, reactive, computed, nextTick, onMounted, onUnmounted } from "vue";
 import GridItem from "@/components/GridItem.vue";
 import UserGridItem from "@/components/UserGridItem.vue";
@@ -52,12 +52,29 @@ import {
 	debounce,
 } from "@/utils/gridUtils";
 
-import itesmData from "@/assets/items.json";
-const items = reactive(itesmData || []);
+import itemsData from "@/assets/items.json";
+
+const items = reactive(
+	itemsData.map((item) => {
+		const width = parseInt(item.style.width);
+		const height = parseInt(item.style.height);
+
+		if (width > height * 1.5) {
+			item.gridType = "wide";
+		} else if (height > width * 1.5) {
+			item.gridType = "tall";
+		} else {
+			item.gridType = "square";
+		}
+
+		return item;
+	})
+);
 
 const cursorRef = ref(null);
 const gridLayoutRef = ref(null);
 const gutter = ref(16);
+const targetGridPosition = ref(null);
 
 const {
 	draggingItem,
@@ -71,9 +88,7 @@ const {
 } = useDraggable({
 	onDragStart: (item) => {
 		console.log("Drag started:", item);
-		// Guardar la posición original del elemento al iniciar el arrastre
 		if (item && item.style) {
-			// Guardamos la posición original para el ghost
 			item.originalPosition = {
 				left: item.style.left,
 				top: item.style.top,
@@ -89,13 +104,14 @@ const {
 		const relativeX = event.clientX - gridRect.left;
 		const relativeY = event.clientY - gridRect.top;
 
-		// Actualizar la posición del cursor para el elemento arrastrado
 		cursorPosition.value = {
 			x: event.clientX,
 			y: event.clientY,
 		};
 
-		// Log para depurar la posición
+		updateTargetGridPosition(relativeX, relativeY, item);
+
+		//eslinkt-disable-next-line
 		console.log(`Cursor position: X=${relativeX}, Y=${relativeY}`);
 
 		const draggedIndex = items.findIndex((i) => i.id === item.id);
@@ -107,11 +123,11 @@ const {
 			item.id
 		);
 
+		//eslinkt-disable-next-line
 		console.log(
 			`Índice actual: ${draggedIndex}, Índice objetivo: ${targetIndex}`
 		);
 
-		// Sólo reordenar elementos si cambiamos a una nueva posición
 		if (
 			draggedIndex !== targetIndex &&
 			targetIndex >= 0 &&
@@ -119,12 +135,9 @@ const {
 		) {
 			console.log(`Reordenando: ${draggedIndex} -> ${targetIndex}`);
 
-			// Mover el elemento en el array
 			moveArrayItem(items, draggedIndex, targetIndex);
 
-			// Actualizar el layout inmediatamente
 			nextTick(() => {
-				// Forzar un recálculo completo del layout
 				calculateResponsiveLayout();
 				console.log("Layout actualizado después de reordenar");
 			});
@@ -133,11 +146,11 @@ const {
 	onDragEnd: (item) => {
 		if (item) {
 			console.log("Drag ended on item:", item.id);
-			// Limpiar la posición original al finalizar
 			delete item.originalPosition;
 		}
 
-		// Actualizar el layout después de soltar
+		targetGridPosition.value = null;
+
 		nextTick(() => {
 			updateLayout();
 			console.log("Layout actualizado después de soltar");
@@ -145,8 +158,52 @@ const {
 	},
 });
 
-const { numColumns, calculateResponsiveLayout, updateLayout } =
-	useMasonryLayout(items, gridLayoutRef, gutter.value);
+const {
+	numColumns,
+	gridHeight,
+	cellSize,
+	calculateResponsiveLayout,
+	updateLayout,
+} = useMasonryLayout(items, gridLayoutRef, gutter.value);
+
+const updateTargetGridPosition = (mouseX, mouseY, dragItem) => {
+	if (!cellSize.value) return;
+
+	const col = Math.floor(mouseX / (cellSize.value + gutter.value));
+	const row = Math.floor(mouseY / (cellSize.value + gutter.value));
+
+	const validCol = Math.min(
+		Math.max(0, col),
+		numColumns.value - (dragItem.colSpan || 1)
+	);
+	const validRow = Math.max(0, row);
+
+	targetGridPosition.value = {
+		col: validCol,
+		row: validRow,
+		colSpan: dragItem.colSpan || 1,
+		rowSpan: dragItem.rowSpan || 1,
+	};
+};
+
+const getGhostIndicatorStyle = () => {
+	if (!targetGridPosition.value || !cellSize.value) return {};
+
+	const { col, row, colSpan, rowSpan } = targetGridPosition.value;
+
+	return {
+		position: "absolute",
+		left: `${col * (cellSize.value + gutter.value)}px`,
+		top: `${row * (cellSize.value + gutter.value)}px`,
+		width: `${colSpan * cellSize.value + (colSpan - 1) * gutter.value}px`,
+		height: `${rowSpan * cellSize.value + (rowSpan - 1) * gutter.value}px`,
+		backgroundColor: "rgba(100, 100, 255, 0.2)",
+		border: "2px dashed rgba(100, 100, 255, 0.6)",
+		borderRadius: "8px",
+		pointerEvents: "none",
+		zIndex: 50,
+	};
+};
 
 const cursorStyle = computed(() => {
 	return {
@@ -155,15 +212,6 @@ const cursorStyle = computed(() => {
 		display: isGrabbing.value ? "block" : "none",
 	};
 });
-
-const getGhostPosition = (item) => {
-	if (!item.isDragging) return { left: 0, top: 0 };
-
-	return {
-		left: parseInt(ghostPosition.value.left || 0),
-		top: parseInt(ghostPosition.value.top || 0),
-	};
-};
 
 const getComponentType = (item) => {
 	switch (item.type) {
@@ -178,7 +226,6 @@ const getComponentType = (item) => {
 
 const getItemStyle = (item) => {
 	if (item.isDragging) {
-		// El elemento que se arrastra sigue al cursor
 		return {
 			position: "absolute",
 			left: `${cursorPosition.value.x - dragOffset.value.x}px`,
@@ -187,14 +234,13 @@ const getItemStyle = (item) => {
 			height: item.style.height,
 			zIndex: 100,
 			pointerEvents: "none",
-			transform: "scale(1.05)",
+			transform: "scale(1.02)",
 			boxShadow: "0 10px 20px rgba(0, 0, 0, 0.2)",
 			background: item.style.background ? item.style.background : "white",
-			opacity: 0.9,
+			opacity: 0.95,
 		};
 	}
 
-	// Para elementos normales, asegúrate de que tengan posición absoluta
 	return {
 		...item.style,
 		position: "absolute",
@@ -206,7 +252,6 @@ const onMouseMove = (event) => processDrag(event, gridLayoutRef.value);
 const onMouseUp = () => endDrag();
 const onMouseLeave = () => endDrag();
 
-const debouncedUpdateLayout = debounce(() => updateLayout(), 300);
 const resizeObserver = new ResizeObserver(() => calculateResponsiveLayout());
 
 onMounted(() => {
@@ -230,6 +275,7 @@ onUnmounted(() => {
 	position: relative;
 	margin: 0 auto;
 	padding: 40px 0;
+	max-width: 1200px;
 }
 
 .grid-layout {
@@ -240,12 +286,12 @@ onUnmounted(() => {
 }
 
 .grid-transition-move {
-	transition: transform 0.5s ease;
+	transition: transform 0.3s ease;
 }
 
 .grid-transition-enter-active,
 .grid-transition-leave-active {
-	transition: all 0.5s ease;
+	transition: all 0.3s ease;
 }
 
 .grid-transition-enter-from,
@@ -254,8 +300,12 @@ onUnmounted(() => {
 	transform: scale(0.9);
 }
 
-/* Estilos responsive */
-@media (max-width: 1280px) {
+.grid-ghost-indicator {
+	transition: all 0.15s ease;
+	z-index: 50;
+}
+
+@media (max-width: 1200px) {
 	.grid-container {
 		max-width: 960px;
 	}
@@ -270,7 +320,7 @@ onUnmounted(() => {
 @media (max-width: 768px) {
 	.grid-container {
 		max-width: 100%;
-		padding: 20px 0;
+		padding: 20px 10px;
 	}
 }
 </style>
