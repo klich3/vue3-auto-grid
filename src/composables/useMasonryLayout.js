@@ -1,7 +1,25 @@
-import { ref, computed } from "vue";
+/*
+█▀ █▄█ █▀▀ █░█ █▀▀ █░█
+▄█ ░█░ █▄▄ █▀█ ██▄ ▀▄▀
+
+Author: <Anton Sychev> (anton at sychev dot xyz)
+useMasonryLayout.js (c) 2025
+Created:  2025-05-20 05:10:16 
+Desc: layout for masonry grid
+*/
+
+import { ref } from "vue";
 import { useGridPositioning } from "@/composables/useGridPositioning";
 import { useGridCollision } from "@/composables/useGridCollision";
 
+/**
+ * Custom composable for managing a masonry grid layout with drag-and-drop functionality.
+ *
+ * @param {Array<Object>} items - The list of items to be displayed in the grid. Each item should have an `id` and `style` properties.
+ * @param {Ref<HTMLElement>} containerRef - A Vue ref pointing to the container element of the grid.
+ * @param {number} [gutter=16] - The spacing (in pixels) between grid items.
+ * @returns {Object} - An object containing reactive properties and methods for managing the grid layout.
+ */
 export function useMasonryLayout(items, containerRef, gutter = 16) {
 	const numColumns = ref(4);
 	const gridHeight = ref(0);
@@ -25,7 +43,13 @@ export function useMasonryLayout(items, containerRef, gutter = 16) {
 
 	let updateTimeoutId = null;
 	let isLayoutUpdating = false;
+	let layoutUpdateScheduled = false;
 
+	/**
+	 * Creates an empty grid matrix with the specified number of rows and columns.
+	 * @param {number} [maxRows=100] - The maximum number of rows in the grid.
+	 * @returns {Array<Array<null>>} A 2D array representing the grid matrix.
+	 */
 	const createEmptyGridMatrix = (maxRows = 100) => {
 		const matrix = [];
 		for (let row = 0; row < maxRows; row++) {
@@ -37,6 +61,10 @@ export function useMasonryLayout(items, containerRef, gutter = 16) {
 		return matrix;
 	};
 
+	/**
+	 * Recalculates the layout based on the container's width and updates item dimensions.
+	 * @returns {void}
+	 */
 	const calculateResponsiveLayout = () => {
 		if (!containerRef.value) return;
 
@@ -51,6 +79,11 @@ export function useMasonryLayout(items, containerRef, gutter = 16) {
 		updateLayout(null, true);
 	};
 
+	/**
+	 * Sets the dimensions and grid type of an item based on its original size.
+	 * @param {Object} item - The item to set dimensions for.
+	 * @returns {void}
+	 */
 	const setItemDimensions = (item) => {
 		const originalWidth = parseInt(item.style.width || 0);
 		const originalHeight = parseInt(item.style.height || 0);
@@ -87,6 +120,14 @@ export function useMasonryLayout(items, containerRef, gutter = 16) {
 		}
 	};
 
+	/**
+	 * Checks if a specific position in the grid matrix is occupied.
+	 * @param {Array<Array<null|string>>} matrix - The grid matrix.
+	 * @param {number} row - The row index.
+	 * @param {number} col - The column index.
+	 * @param {string|null} [excludeId=null] - An ID to exclude from the check.
+	 * @returns {boolean} True if the position is occupied, false otherwise.
+	 */
 	const isPositionOccupied = (matrix, row, col, excludeId = null) => {
 		if (row >= matrix.length || col >= numColumns.value) return true;
 
@@ -98,6 +139,12 @@ export function useMasonryLayout(items, containerRef, gutter = 16) {
 		);
 	};
 
+	/**
+	 * Finds all items affected by the ghost position in the grid matrix.
+	 * @param {Array<Array<null|string>>} matrix - The grid matrix.
+	 * @param {Object|null} ghostPos - The ghost position object.
+	 * @returns {Array<string>} An array of affected item IDs.
+	 */
 	const findAffectedItems = (matrix, ghostPos) => {
 		if (!ghostPos) return [];
 
@@ -123,6 +170,14 @@ export function useMasonryLayout(items, containerRef, gutter = 16) {
 		return [...affected];
 	};
 
+	/**
+	 * Places an item in the grid layout, recalculating its position if necessary.
+	 * @param {Object} item - The item to place.
+	 * @param {Array<Array<null|string>>} gridMatrix - The grid matrix.
+	 * @param {number} maxRows - The maximum number of rows in the grid.
+	 * @param {boolean} needsRecalculation - Whether the item's position needs recalculation.
+	 * @returns {void}
+	 */
 	const placeItemInLayout = (item, gridMatrix, maxRows, needsRecalculation) => {
 		if (!needsRecalculation) {
 			const prevPosition = previousPositions.value.get(item.id);
@@ -161,6 +216,13 @@ export function useMasonryLayout(items, containerRef, gutter = 16) {
 		findNewPosition(item, gridMatrix, maxRows);
 	};
 
+	/**
+	 * Finds a new position for an item in the grid matrix.
+	 * @param {Object} item - The item to place.
+	 * @param {Array<Array<null|string>>} gridMatrix - The grid matrix.
+	 * @param {number} maxRows - The maximum number of rows in the grid.
+	 * @returns {boolean} True if a position was found, false otherwise.
+	 */
 	const findNewPosition = (item, gridMatrix, maxRows) => {
 		const colSpan = item.colSpan || 1;
 		const rowSpan = item.rowSpan || 1;
@@ -177,6 +239,15 @@ export function useMasonryLayout(items, containerRef, gutter = 16) {
 		return false;
 	};
 
+	/**
+	 * Checks if a specific space in the grid matrix is available.
+	 * @param {Array<Array<null|string>>} matrix - The grid matrix.
+	 * @param {number} row - The starting row index.
+	 * @param {number} col - The starting column index.
+	 * @param {number} rowSpan - The number of rows the item spans.
+	 * @param {number} colSpan - The number of columns the item spans.
+	 * @returns {boolean} True if the space is available, false otherwise.
+	 */
 	const checkSpaceAvailability = (matrix, row, col, rowSpan, colSpan) => {
 		for (let r = 0; r < rowSpan; r++) {
 			for (let c = 0; c < colSpan; c++) {
@@ -188,6 +259,16 @@ export function useMasonryLayout(items, containerRef, gutter = 16) {
 		return true;
 	};
 
+	/**
+	 * Places an item at a specific position in the grid matrix.
+	 * @param {Object} item - The item to place.
+	 * @param {Array<Array<null|string>>} gridMatrix - The grid matrix.
+	 * @param {number} row - The row index.
+	 * @param {number} col - The column index.
+	 * @param {number} rowSpan - The number of rows the item spans.
+	 * @param {number} colSpan - The number of columns the item spans.
+	 * @returns {boolean} True if the item was placed successfully, false otherwise.
+	 */
 	const placeItemAtPosition = (
 		item,
 		gridMatrix,
@@ -217,6 +298,11 @@ export function useMasonryLayout(items, containerRef, gutter = 16) {
 		return true;
 	};
 
+	/**
+	 * Updates the ghost position in the grid layout.
+	 * @param {Object|null} position - The new ghost position.
+	 * @returns {void}
+	 */
 	const updateGhostPosition = (position) => {
 		if (!position) return;
 
@@ -246,6 +332,14 @@ export function useMasonryLayout(items, containerRef, gutter = 16) {
 		}, 25);
 	};
 
+	/**
+	 * Updates the grid layout based on the current state and parameters.
+	 * @param {Object|null} [targetPosition=null] - The target position for the ghost.
+	 * @param {boolean} [forceRecalculate=false] - Whether to force recalculation of the layout.
+	 * @param {string|null} [displacedId=null] - The ID of the displaced item.
+	 * @param {string|null} [fixedItemId=null] - The ID of the fixed item.
+	 * @returns {void}
+	 */
 	const updateLayout = (
 		targetPosition = null,
 		forceRecalculate = false,
@@ -293,6 +387,10 @@ export function useMasonryLayout(items, containerRef, gutter = 16) {
 		}
 	};
 
+	/**
+	 * Stores the current positions of all items in the grid.
+	 * @returns {void}
+	 */
 	const storeCurrentPositions = () => {
 		const currentPositions = new Map();
 		items.forEach((item) => {
@@ -308,6 +406,13 @@ export function useMasonryLayout(items, containerRef, gutter = 16) {
 		});
 	};
 
+	/**
+	 * Processes the ghost and dragged item in the grid layout.
+	 * @param {Array<Array<null|string>>} gridMatrix - The grid matrix.
+	 * @param {number} maxRows - The maximum number of rows in the grid.
+	 * @param {string|null} fixedItemId - The ID of the fixed item.
+	 * @returns {void}
+	 */
 	const processGhostAndDraggedItem = (gridMatrix, maxRows, fixedItemId) => {
 		const draggedItem = items.find((item) => item.isDragging);
 
@@ -345,6 +450,12 @@ export function useMasonryLayout(items, containerRef, gutter = 16) {
 		}
 	};
 
+	/**
+	 * Processes a released item in the grid layout.
+	 * @param {Array<Array<null|string>>} gridMatrix - The grid matrix.
+	 * @param {number} maxRows - The maximum number of rows in the grid.
+	 * @returns {void}
+	 */
 	const processReleasedItem = (gridMatrix, maxRows) => {
 		const releasedItem = items.find((item) => item.id === draggedItemId.value);
 
@@ -372,6 +483,14 @@ export function useMasonryLayout(items, containerRef, gutter = 16) {
 		}
 	};
 
+	/**
+	 * Processes a displaced item in the grid layout.
+	 * @param {string} displacedId - The ID of the displaced item.
+	 * @param {Array<Array<null|string>>} gridMatrix - The grid matrix.
+	 * @param {number} maxRows - The maximum number of rows in the grid.
+	 * @param {string|null} fixedItemId - The ID of the fixed item.
+	 * @returns {void}
+	 */
 	const processDisplacedItem = (
 		displacedId,
 		gridMatrix,
@@ -384,6 +503,15 @@ export function useMasonryLayout(items, containerRef, gutter = 16) {
 		}
 	};
 
+	/**
+	 * Processes the remaining items in the grid layout.
+	 * @param {Array<Array<null|string>>} gridMatrix - The grid matrix.
+	 * @param {number} maxRows - The maximum number of rows in the grid.
+	 * @param {Array<string>} affectedIds - The IDs of affected items.
+	 * @param {string|null} fixedItemId - The ID of the fixed item.
+	 * @param {boolean} forceRecalculate - Whether to force recalculation of the layout.
+	 * @returns {void}
+	 */
 	const processRemainingItems = (
 		gridMatrix,
 		maxRows,
@@ -406,6 +534,10 @@ export function useMasonryLayout(items, containerRef, gutter = 16) {
 		});
 	};
 
+	/**
+	 * Updates the previous positions of all items in the grid.
+	 * @returns {void}
+	 */
 	const updatePreviousPositions = () => {
 		previousPositions.value = new Map();
 		items.forEach((item) => {
@@ -421,6 +553,12 @@ export function useMasonryLayout(items, containerRef, gutter = 16) {
 		});
 	};
 
+	/**
+	 * Updates the height of the grid based on its content.
+	 * @param {Array<Array<null|string>>} gridMatrix - The grid matrix.
+	 * @param {number} maxRows - The maximum number of rows in the grid.
+	 * @returns {void}
+	 */
 	const updateGridHeight = (gridMatrix, maxRows) => {
 		let maxRow = 0;
 
@@ -452,6 +590,11 @@ export function useMasonryLayout(items, containerRef, gutter = 16) {
 		}
 	};
 
+	/**
+	 * Finalizes the drag operation for a dragged item.
+	 * @param {Object} draggedItem - The dragged item.
+	 * @returns {void}
+	 */
 	const finalizeDrag = (draggedItem) => {
 		if (ghostPosition.value && draggedItem) {
 			const { col, row } = ghostPosition.value;
@@ -480,8 +623,11 @@ export function useMasonryLayout(items, containerRef, gutter = 16) {
 		}
 	};
 
-	let layoutUpdateScheduled = false;
-
+	/**
+	 * Finalizes the drag operation for a dragged item and locks its position.
+	 * @param {Object} draggedItem - The dragged item.
+	 * @returns {void}
+	 */
 	const finalizeDragAndLock = (draggedItem) => {
 		if (!ghostPosition.value || !draggedItem) return;
 
@@ -490,10 +636,7 @@ export function useMasonryLayout(items, containerRef, gutter = 16) {
 			updateTimeoutId = null;
 		}
 
-		if (isLayoutUpdating || layoutUpdateScheduled) {
-			console.log("Actualización de layout ya en curso, no se iniciará otra.");
-			return;
-		}
+		if (isLayoutUpdating || layoutUpdateScheduled) return;
 
 		layoutUpdateScheduled = true;
 
@@ -546,10 +689,10 @@ export function useMasonryLayout(items, containerRef, gutter = 16) {
 				}
 			}, 20);
 		} catch (error) {
-			console.error("Error durante finalizeDragAndLock:", error);
 			layoutUpdateScheduled = false;
 		}
 	};
+
 	return {
 		numColumns,
 		gridHeight,

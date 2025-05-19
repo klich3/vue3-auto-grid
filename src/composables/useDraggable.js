@@ -1,5 +1,18 @@
+/*
+█▀ █▄█ █▀▀ █░█ █▀▀ █░█
+▄█ ░█░ █▄▄ █▀█ ██▄ ▀▄▀
+
+Author: <Anton Sychev> (anton at sychev dot xyz)
+useDraggable.js (c) 2025
+Created:  2025-05-20 05:27:38 
+Desc: A composable function to enable draggable functionality for items.
+*/
+
 import { ref } from "vue";
 
+/**
+ * @param {Object} [options={}] - Configuration options for the draggable behavior.
+ */
 export function useDraggable(options = {}) {
 	const draggingItem = ref(null);
 	const isGrabbing = ref(false);
