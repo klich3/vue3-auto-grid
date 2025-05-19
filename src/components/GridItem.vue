@@ -1,5 +1,5 @@
 <template>
-	<div :style="mergedStyle" :class="['grid-item', { dragging: isDragging }]">
+	<div :style="mergedStyle" :class="classList">
 		<div v-if="isDragging" class="ghost-element">
 			<div class="ghost-inner"></div>
 		</div>
@@ -14,12 +14,19 @@
 import { defineProps, computed } from "vue";
 
 const props = defineProps({
-	item: Object,
-	isDragging: Boolean,
+	item: {
+		type: Object,
+		required: true,
+	},
+	isDragging: {
+		type: Boolean,
+		default: false,
+	},
 	ghostPosition: Object,
 	style: Object,
 });
 
+// Computar estilos combinados
 const mergedStyle = computed(() => {
 	if (!props.isDragging) {
 		return {
@@ -35,6 +42,17 @@ const mergedStyle = computed(() => {
 		pointerEvents: "none",
 	};
 });
+
+// Computar clases dinámicamente
+const classList = computed(() => [
+	"grid-item",
+	{
+		dragging: props.isDragging,
+		wide: props.item?.colSpan === 2,
+		tall: props.item?.rowSpan === 2,
+		square: props.item?.colSpan === 1 && props.item?.rowSpan === 1,
+	},
+]);
 </script>
 
 <style scoped>
@@ -44,13 +62,14 @@ const mergedStyle = computed(() => {
 	user-select: none;
 	position: absolute;
 	transition: all 0.2s ease;
-	background-color: antiquewhite;
 	cursor: grab;
 	box-sizing: border-box;
 	max-width: 100%;
 	max-height: 100%;
 	border: 1px solid rgba(0, 0, 0, 0.1);
 	-webkit-user-drag: none;
+	will-change: transform, opacity; /* Optimización de rendimiento */
+	backface-visibility: hidden; /* Mejora para renderizado */
 }
 
 .grid-item.dragging {
