@@ -1,284 +1,399 @@
 <template>
-	<div class="wrap debug" :class="{ grabbing: isGrabbing }">
-		<div class="cursor" ref="cursorRef"></div>
-		<div class="grid-container debug">
-			<div class="grid-layout" ref="gridLayoutRef" @dragover.prevent @drop="onDrop">
-				<transition-group name="grid-transition" tag="div">
-					<div v-for="(item, index) in items" :key="item.id" :style="item.style"
-						:class="['grid-item', { drag: item.isDragging }]" draggable="true"
-						@dragstart="onDragStart(item, $event)" @dragend="onDragEnd(item, $event)"
-						@drag="onDrag(item, $event)">
-						{{ item.content }}
-					</div>
+	<div class="wrap" :class="{ grabbing: isGrabbing }">
+		<div class="cursor" ref="cursorRef" :style="cursorStyle"></div>
+		<div class="grid-container">
+			<div
+				class="grid-layout"
+				ref="gridLayoutRef"
+				:style="{ height: `${gridHeight}px` }"
+			>
+				<transition-group name="grid-transition" tag="div" v-if="isGridReady">
+					<grid-item
+						v-for="item in items"
+						:key="item.id"
+						:item="item"
+						:is-dragging="item.isDragging"
+						:style="getItemStyle(item)"
+						:data-key="item.id"
+						class="grid-item"
+						@mousedown.stop.prevent="onMouseDown($event, item)"
+					>
+						<component
+							:is="getComponentType(item)"
+							:userData="item.userData"
+							:imageData="item.imageData"
+						/>
+					</grid-item>
 				</transition-group>
+
+				<div
+					v-if="shouldShowGhostIndicator"
+					class="grid-ghost-indicator"
+					:style="ghostIndicatorStyle"
+				></div>
 			</div>
 		</div>
 	</div>
 </template>
 
 <script setup>
-//sample https://nevflynn.com/?ref=godly
-import { ref, reactive, nextTick, onMounted, onUnmounted } from "vue";
+import {
+	ref,
+	reactive,
+	computed,
+	nextTick,
+	onMounted,
+	onUnmounted,
+	watch,
+} from "vue";
+import GridItem from "@/components/GridItem.vue";
+import UserGridItem from "@/components/UserGridItem.vue";
+import ImageGridItem from "@/components/ImageGridItem.vue";
+import { useDraggable } from "@/composables/useDraggable";
+import { useMasonryLayout } from "@/composables/useMasonryLayout";
+import { debounce } from "@/utils/gridUtils";
+import itemsData from "@/assets/items.json";
 
+const items = reactive(generateItemsWithTypes(itemsData));
 const cursorRef = ref(null);
-const isGrabbing = ref(false);
-const items = reactive([
-	{
-		id: "1",
-		style: { width: "576px", height: "280px", background: "red" },
-		content: "Item 1",
-	},
-	{
-		id: "2",
-		style: { width: "280px", height: "280px", background: "yellow" },
-		content: "Item 2",
-	},
-	{
-		id: "3",
-		style: { width: "280px", height: "576px", background: "green" },
-		content: "Item 3",
-	},
-	{
-		id: "9",
-		style: { width: "280px", height: "280px", background: "rose" },
-		content: "Item 9",
-	},
-	{
-		id: "10",
-		style: { width: "576px", height: "280px", background: "pink" },
-		content: "Item 10",
-	},
-	{
-		id: "4",
-		style: { width: "280px", height: "280px", background: "orange" },
-		content: "Item 4",
-	},
-	{
-		id: "5",
-		style: { width: "280px", height: "280px", background: "blue" },
-		content: "Item 5",
-	},
-	{
-		id: "6",
-		style: { width: "280px", height: "576px", background: "grey" },
-		content: "Item 6",
-	},
-	{
-		id: "7",
-		style: { width: "576px", height: "280px", background: "black" },
-		content: "Item 7",
-	},
-	{
-		id: "8",
-		style: { width: "576px", height: "280px", background: "white" },
-		content: "Item 8",
-	},
-]);
-
 const gridLayoutRef = ref(null);
-const draggingItem = ref(null);
-const gutter = 16;
-const numColumns = ref(0);
+const gutter = ref(16);
+const targetGridPosition = ref(null);
 
-const updateMasonryLayout = () => {
-	const containerWidth = gridLayoutRef.value.offsetWidth;
-	numColumns.value = Math.floor(containerWidth / (280 + gutter));
+// Inicializar los elementos con sus tipos
+function generateItemsWithTypes(itemsData) {
+	return itemsData.map((item) => {
+		const width = parseInt(item.style.width);
+		const height = parseInt(item.style.height);
 
-	// Inicializa las alturas de las columnas
-	const columnHeights = new Array(numColumns.value).fill(0);
-
-	items.forEach((item) => {
-		//item.isSmall = containerWidth < parseInt(item.style.width) ? true : false;
-
-		const itemWidth = parseInt(item.style.width);
-		const itemHeight = parseInt(item.style.height);
-
-		item.style.width = `${itemWidth}px`;
-		item.style.height = `${itemHeight}px`;
-
-		const colSpan = Math.ceil(itemWidth / (280 + gutter));
-
-		// Encuentra la columna con la menor altura
-		let minColumnIndex = 0;
-		let minHeight = Number.MAX_VALUE;
-		for (let i = 0; i <= numColumns.value - colSpan; i++) {
-			const maxHeightInSpan = Math.max(...columnHeights.slice(i, i + colSpan));
-			if (maxHeightInSpan < minHeight) {
-				minHeight = maxHeightInSpan;
-				minColumnIndex = i;
-			}
+		if (width > height * 1.5) {
+			item.gridType = "wide";
+		} else if (height > width * 1.5) {
+			item.gridType = "tall";
+		} else {
+			item.gridType = "square";
 		}
 
-		// Calcular la posición de izquierda y arriba para el elemento
-		const left = minColumnIndex * (280 + gutter);
-		const top = minHeight;
+		return item;
+	});
+}
 
-		item.style.left = `${left}px`;
-		item.style.top = `${top}px`;
+const {
+	draggingItem,
+	isGrabbing,
+	cursorPosition,
+	ghostPosition,
+	dragOffset,
+	startDrag,
+	processDrag,
+	endDrag,
+	resetDragState,
+} = useDraggable({
+	onDragStart: handleDragStart,
+	onDrag: handleDrag,
+	onDragEnd: handleDragEnd,
+});
 
-		// Actualizar las alturas de las columnas para las que el elemento ocupa espacio
-		for (let i = minColumnIndex; i < minColumnIndex + colSpan; i++) {
-			columnHeights[i] = top + itemHeight + gutter;
+const {
+	numColumns,
+	gridHeight,
+	cellSize,
+	calculateResponsiveLayout,
+	updateLayout,
+	updateGhostPosition,
+	finalizeDrag,
+	finalizeDragAndLock,
+	getItemAtPosition,
+	pixelsToGridPosition,
+} = useMasonryLayout(items, gridLayoutRef, gutter.value);
+
+const isGridReady = computed(() => cellSize.value > 0);
+
+const displacedItemId = computed(() => {
+	if (!targetGridPosition.value || !gridLayoutRef.value) return null;
+
+	const item = getItemAtPosition(
+		targetGridPosition.value.row,
+		targetGridPosition.value.col,
+		draggingItem.value
+	);
+
+	if (item && item.id !== draggingItem.value?.id) {
+		item.wasDisplaced = true;
+		return item.id;
+	}
+
+	return null;
+});
+
+const shouldShowGhostIndicator = computed(() => {
+	return (
+		targetGridPosition.value &&
+		isGridReady.value &&
+		isGrabbing.value &&
+		draggingItem.value
+	);
+});
+
+const ghostIndicatorStyle = computed(() => {
+	if (!targetGridPosition.value || !cellSize.value) return {};
+
+	const { col, row, colSpan = 1, rowSpan = 1 } = targetGridPosition.value;
+
+	if (
+		col == null ||
+		row == null ||
+		!Number.isFinite(col) ||
+		!Number.isFinite(row)
+	) {
+		return {};
+	}
+
+	return {
+		position: "absolute",
+		left: `${col * (cellSize.value + gutter.value)}px`,
+		top: `${row * (cellSize.value + gutter.value)}px`,
+		width: `${colSpan * cellSize.value + (colSpan - 1) * gutter.value}px`,
+		height: `${rowSpan * cellSize.value + (rowSpan - 1) * gutter.value}px`,
+		zIndex: 60,
+		opacity: 0.9,
+		pointerEvents: "none",
+	};
+});
+
+const cursorStyle = computed(() => {
+	return {
+		top: `${cursorPosition.value.y}px`,
+		left: `${cursorPosition.value.x}px`,
+		display: isGrabbing.value ? "block" : "none",
+	};
+});
+
+function handleDragStart(item) {
+	if (item?.style) {
+		item.originalPosition = {
+			left: item.style.left,
+			top: item.style.top,
+		};
+	}
+}
+
+function handleDrag(item, event) {
+	if (!item || !gridLayoutRef.value) return;
+
+	const gridRect = gridLayoutRef.value.getBoundingClientRect();
+	const relativeX = event.clientX - gridRect.left;
+	const relativeY = event.clientY - gridRect.top;
+
+	cursorPosition.value = {
+		x: event.clientX,
+		y: event.clientY,
+	};
+
+	updateTargetGridPosition(relativeX, relativeY, item);
+}
+
+function handleDragEnd(item) {
+	if (!item) return;
+	delete item.originalPosition;
+	cleanupDisplacedState();
+	finalizeDragAndLock(item);
+	targetGridPosition.value = null;
+}
+
+function cleanupDisplacedState() {
+	items.forEach((item) => {
+		if (item.wasDisplaced) {
+			item.wasDisplacedEnding = true;
+			item.wasDisplaced = false;
+
+			setTimeout(() => {
+				item.wasDisplacedEnding = false;
+			}, 350);
 		}
 	});
+}
 
-	// Ajustar la altura del contenedor para abarcar todo el contenido
-	const maxHeight = Math.max(...columnHeights);
-	gridLayoutRef.value.style.height = `${maxHeight}px`;
-};
+function updateTargetGridPosition(mouseX, mouseY, dragItem) {
+	if (!cellSize.value || mouseX == null || mouseY == null || !dragItem) return;
 
-const onDragStart = (item, event) => {
-	item.isDragging = true;
-	draggingItem.value = item;
-	isGrabbing.value = true;
+	const numericMouseX = Number(mouseX);
+	const numericMouseY = Number(mouseY);
 
-	draggingItem.value.startX = event.clientX;
-	draggingItem.value.startY = event.clientY;
-	draggingItem.value.initialTop = parseInt(item.style.top);
-	draggingItem.value.initialLeft = parseInt(item.style.left);
-};
+	if (isNaN(numericMouseX) || isNaN(numericMouseY)) return;
 
-const onDrag = (item, event) => {
-	if (draggingItem.value) {
-		// Calcular las diferencias en las coordenadas del ratón
-		const dx = event.clientX - draggingItem.value.startX;
-		const dy = event.clientY - draggingItem.value.startY;
+	const position = pixelsToGridPosition(
+		numericMouseX,
+		numericMouseY,
+		dragItem.colSpan || 1,
+		dragItem.rowSpan || 1
+	);
 
-		// Ajustar la posición del elemento arrastrado basándose en las diferencias calculadas
-		const newLeft = draggingItem.value.initialLeft + dx;
-		const newTop = draggingItem.value.initialTop + dy;
+	if (!position) return;
 
-		draggingItem.value.style.left = `${newLeft}px`;
-		draggingItem.value.style.top = `${newTop}px`;
+	targetGridPosition.value = {
+		...position,
+		id: dragItem.id,
+	};
 
-		// Actualizar la posición del cursor visual para dar una sensación de arrastre
-		cursorRef.value.style.top = `${event.pageY}px`;
-		cursorRef.value.style.left = `${event.pageX}px`;
+	nextTick(() => updateGhostPosition(targetGridPosition.value));
+}
 
-		// Recalcular la posición de los elementos y actualizar la cuadrícula
-		const draggedIndex = items.findIndex((i) => i.id === draggingItem.value.id);
-		const targetIndex = calculateTargetIndex(newLeft, newTop);
+function getComponentType(item) {
+	switch (item.type) {
+		case "user":
+			return UserGridItem;
+		case "image":
+			return ImageGridItem;
+		default:
+			return null;
+	}
+}
 
-		// Mover el elemento en el array y actualizar el diseño
-		moveArrayItem(draggedIndex, targetIndex);
-		updateMasonryLayout();
+function getItemStyle(item) {
+	if (item.id === displacedItemId.value) {
+		return {
+			...item.style,
+			position: "absolute",
+			zIndex: 90,
+			transition: "all 0.2s ease",
+			boxShadow: "0 0 0 3px rgba(0, 100, 255, 0.7)",
+			opacity: 0.9,
+		};
+	}
+
+	if (item.wasDisplaced || item.wasDisplacedEnding) {
+		return {
+			...item.style,
+			position: "absolute",
+			transition: "all 0.3s ease",
+			boxShadow: item.wasDisplacedEnding
+				? "none"
+				: "0 0 0 2px rgba(0, 100, 255, 0.3)",
+			zIndex: item.wasDisplacedEnding ? 5 : 80,
+		};
+	}
+
+	if (item.isDragging) {
+		return {
+			position: "absolute",
+			left: `${cursorPosition.value.x - dragOffset.value.x}px`,
+			top: `${cursorPosition.value.y - dragOffset.value.y}px`,
+			width: item.style.width,
+			height: item.style.height,
+			zIndex: 100,
+			pointerEvents: "none",
+			transform: "scale(1.05)",
+			boxShadow: "0 10px 25px rgba(0, 0, 0, 0.25)",
+			background: item.style.background || "white",
+			opacity: 0.8,
+		};
+	}
+
+	return {
+		...item.style,
+		position: "absolute",
+		transition: item.style.transition || "none",
+	};
+}
+
+const onMouseUp = () => {
+	try {
+		endDrag();
+	} catch (error) {
+		console.error("Error en onMouseUp:", error);
+		resetDragState();
 	}
 };
 
-const onDragEnd = (item, event) => {
-	item.isDragging = false;
-	isGrabbing.value = false;
-	draggingItem.value = null;
+const onMouseDown = (event, item) => {
+	try {
+		startDrag(item, event);
+	} catch (error) {
+		console.error("Error en onMouseDown:", error);
+	}
 };
 
-const calculateTargetIndex = (left, top) => {
-	const row = Math.floor(top / (parseInt(items[0].style.height) + gutter));
-	const column = Math.floor(left / (parseInt(items[0].style.width) + gutter));
-	return Math.min(row * numColumns.value + column, items.length - 1);
+const onMouseMove = (event) => {
+	try {
+		processDrag(event, gridLayoutRef.value);
+	} catch (error) {
+		console.error("Error en onMouseMove:", error);
+	}
 };
 
-const moveArrayItem = (fromIndex, toIndex) => {
-	const element = items.splice(fromIndex, 1)[0];
-	items.splice(toIndex, 0, element);
+const onMouseLeave = () => {
+	try {
+		endDrag();
+	} catch (error) {
+		console.error("Error en onMouseLeave:", error);
+		resetDragState();
+	}
 };
 
-const debounce = (func, wait) => {
-	let timeout;
-	return (...args) => {
-		clearTimeout(timeout);
-		timeout = setTimeout(() => func.apply(this, args), wait);
-	};
-};
-
-// Crear la función debounced
-const debouncedUpdateMasonryLayout = debounce(() => {
-	updateMasonryLayout();
-}, 300);
-
-// Crear el ResizeObserver con la función debounced
-const resizeObserver = new ResizeObserver(() => {
-	debouncedUpdateMasonryLayout();
-});
+const resizeObserver = new ResizeObserver(
+	debounce(() => calculateResponsiveLayout(), 100)
+);
 
 onMounted(() => {
 	nextTick(() => {
-		updateMasonryLayout(); // Inicializa el layout
-		if (gridLayoutRef.value) {
-			resizeObserver.observe(gridLayoutRef.value); // Observa el contenedor
-		}
+		calculateResponsiveLayout();
+		window.addEventListener("mousemove", onMouseMove);
+		window.addEventListener("mouseup", onMouseUp);
+		window.addEventListener("error", handleGlobalError);
 	});
+
+	if (gridLayoutRef.value) {
+		resizeObserver.observe(gridLayoutRef.value);
+	}
 });
 
 onUnmounted(() => {
+	window.removeEventListener("mousemove", onMouseMove);
+	window.removeEventListener("mouseup", onMouseUp);
+	window.removeEventListener("error", handleGlobalError);
+
 	if (gridLayoutRef.value) {
-		resizeObserver.unobserve(gridLayoutRef.value); // Deja de observar
+		resizeObserver.unobserve(gridLayoutRef.value);
 	}
 });
+
+const handleGlobalError = () => {
+	if (isGrabbing.value) {
+		resetDragState();
+		updateLayout(null, true);
+	}
+};
+
+watch(
+	() => window.innerWidth,
+	debounce(() => calculateResponsiveLayout(), 200)
+);
 </script>
 
 <style scoped>
-.wrap {
-	will-change: transform, opacity;
-	height: 100%;
-}
-
 .grid-container {
-	max-width: 1200px;
 	position: relative;
-	margin: -16px auto 0px;
-	padding: 80px 0;
+	margin: 0 auto;
+	padding: 40px 0;
+	max-width: 1200px;
 }
 
 .grid-layout {
 	position: relative;
 	width: 100%;
-	transition: height 0.2s ease;
+	transition: height 0.3s ease;
+	min-height: 300px;
 }
 
-.grid-item {
-	overflow: hidden;
-	border-radius: 8px;
-	user-select: none;
-	position: absolute;
-	transition: all 0.2s ease;
-	background-color: antiquewhite;
-	cursor: grab;
-	box-sizing: border-box;
-	max-width: 100%;
-	max-height: 100%;
-}
-
-.grid-item.drag {
-	position: absolute;
-	background-color: #f00;
-	border: 2px dashed #000;
-}
-
-.grabbing,
-.grabbing .grid-item {
-	cursor: grabbing;
-}
-
-.cursor {
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 40px;
-	height: 40px;
-	border-radius: 50%;
-	background: rgba(255, 0, 0, 0.9);
-	z-index: 99;
-	touch-action: none;
-	pointer-events: none;
-}
-
+/* Transiciones */
 .grid-transition-move {
-	transition: transform 0.5s ease;
+	transition: transform 0.3s ease;
 }
 
 .grid-transition-enter-active,
 .grid-transition-leave-active {
-	transition: all 0.5s ease;
+	transition: all 0.3s ease;
 }
 
 .grid-transition-enter-from,
@@ -287,27 +402,45 @@ onUnmounted(() => {
 	transform: scale(0.9);
 }
 
-.grid-item-ghost {
-	opacity: 0.5;
-	background-color: #c8ebfb !important;
-	border: 2px dashed #2196F3 !important;
+/* Indicador fantasma */
+.grid-ghost-indicator {
+	position: absolute;
+	transition: all 0.15s ease;
+	z-index: 50;
+	background-color: rgba(0, 100, 255, 0.2);
+	border-radius: 8px;
+	box-sizing: border-box;
+	pointer-events: none;
+	box-shadow: 0 0 10px rgba(0, 100, 255, 0.3);
+	animation: pulse 1.5s infinite alternate;
 }
 
-@media (max-width: 1024px) {
+@keyframes pulse {
+	0% {
+		opacity: 0.5;
+	}
+	100% {
+		opacity: 1;
+	}
+}
+
+/* Diseño responsivo */
+@media (max-width: 1200px) {
 	.grid-container {
-		max-width: 1200px;
+		max-width: 960px;
 	}
 }
 
 @media (max-width: 960px) {
 	.grid-container {
-		max-width: 800px;
+		max-width: 720px;
 	}
 }
 
 @media (max-width: 768px) {
 	.grid-container {
-		max-width: 768px;
+		max-width: 100%;
+		padding: 20px 10px;
 	}
 }
 </style>

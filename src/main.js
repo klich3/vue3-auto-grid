@@ -17,6 +17,4 @@ import { createApp } from "vue";
 import App from "@/App.vue";
 
 const app = createApp(App);
-
-//Note: Mount the app
 app.mount("#app");
