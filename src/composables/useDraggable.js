@@ -8,51 +8,76 @@ export function useDraggable(options = {}) {
 	const dragOffset = ref({ x: 0, y: 0 });
 
 	const startDrag = (item, event) => {
-		if (!item) return;
+		if (!item || !event) return;
 
-		draggingItem.value = item;
-		item.isDragging = true;
-		isGrabbing.value = true;
+		try {
+			draggingItem.value = item;
+			item.isDragging = true;
+			isGrabbing.value = true;
 
-		const rect = event.currentTarget.getBoundingClientRect();
-		dragOffset.value = {
-			x: event.clientX - rect.left,
-			y: event.clientY - rect.top,
-		};
+			const rect = event.currentTarget?.getBoundingClientRect();
+			if (!rect) return;
 
-		cursorPosition.value = {
-			x: event.clientX,
-			y: event.clientY,
-		};
+			dragOffset.value = {
+				x: event.clientX - rect.left,
+				y: event.clientY - rect.top,
+			};
 
-		if (options.onDragStart) {
-			options.onDragStart(item);
+			cursorPosition.value = {
+				x: event.clientX,
+				y: event.clientY,
+			};
+
+			if (options.onDragStart && typeof options.onDragStart === "function") {
+				options.onDragStart(item);
+			}
+		} catch (error) {
+			console.error("Error en startDrag:", error);
+			if (item) item.isDragging = false;
+			draggingItem.value = null;
+			isGrabbing.value = false;
 		}
 	};
 
 	const processDrag = (event, container) => {
-		if (!draggingItem.value || !isGrabbing.value) return;
+		if (!draggingItem.value || !isGrabbing.value || !event) return;
 
-		cursorPosition.value = {
-			x: event.clientX,
-			y: event.clientY,
-		};
+		try {
+			cursorPosition.value = {
+				x: event.clientX,
+				y: event.clientY,
+			};
 
-		if (options.onDrag) {
-			options.onDrag(draggingItem.value, event);
+			if (options.onDrag && typeof options.onDrag === "function") {
+				options.onDrag(draggingItem.value, event);
+			}
+		} catch (error) {
+			console.error("Error en processDrag:", error);
 		}
 	};
 
 	const endDrag = () => {
 		if (!draggingItem.value) return;
 
-		const item = draggingItem.value;
-		item.isDragging = false;
+		try {
+			const item = draggingItem.value;
+			item.isDragging = false;
 
-		if (options.onDragEnd) {
-			options.onDragEnd(item);
+			if (options.onDragEnd && typeof options.onDragEnd === "function") {
+				options.onDragEnd(item);
+			}
+		} catch (error) {
+			console.error("Error en endDrag:", error);
+		} finally {
+			draggingItem.value = null;
+			isGrabbing.value = false;
 		}
+	};
 
+	const resetDragState = () => {
+		if (draggingItem.value) {
+			draggingItem.value.isDragging = false;
+		}
 		draggingItem.value = null;
 		isGrabbing.value = false;
 	};
@@ -66,5 +91,6 @@ export function useDraggable(options = {}) {
 		startDrag,
 		processDrag,
 		endDrag,
+		resetDragState,
 	};
 }

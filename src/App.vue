@@ -5,20 +5,18 @@
 			<div
 				class="grid-layout"
 				ref="gridLayoutRef"
-				@mousemove="onMouseMove"
-				@mouseup="onMouseUp"
-				@mouseleave="onMouseLeave"
+				:style="{ height: `${gridHeight}px` }"
 			>
-				<transition-group name="grid-transition" tag="div">
+				<transition-group name="grid-transition" tag="div" v-if="cellSize > 0">
 					<grid-item
 						v-for="item in items"
 						:key="item.id"
 						:item="item"
 						:is-dragging="item.isDragging"
 						:style="getItemStyle(item)"
-						:ghost-position="ghostPosition"
 						:data-key="item.id"
-						@mousedown.stop.prevent="(e) => onMouseDown(e, item)"
+						class="grid-item"
+						@mousedown.stop.prevent="onMouseDown($event, item)"
 					>
 						<component
 							:is="getComponentType(item)"
@@ -29,7 +27,7 @@
 				</transition-group>
 
 				<div
-					v-if="isGrabbing && targetGridPosition"
+					v-if="showGhostIndicator"
 					class="grid-ghost-indicator"
 					:style="getGhostIndicatorStyle()"
 				></div>
@@ -85,16 +83,14 @@ const {
 	startDrag,
 	processDrag,
 	endDrag,
+	resetDragState,
 } = useDraggable({
 	onDragStart: (item) => {
-		console.log("Drag started:", item);
 		if (item && item.style) {
 			item.originalPosition = {
 				left: item.style.left,
 				top: item.style.top,
 			};
-
-			console.log("Drag started on item:", item.id);
 		}
 	},
 	onDrag: (item, event) => {
@@ -108,13 +104,28 @@ const {
 			x: event.clientX,
 			y: event.clientY,
 		};
-
 		updateTargetGridPosition(relativeX, relativeY, item);
 	},
 	onDragEnd: (item) => {
 		if (item) {
+			const itemId = item.id;
 			delete item.originalPosition;
+
+			items.forEach((gridItem) => {
+				if (gridItem.wasDisplaced) {
+					gridItem.wasDisplaced = false;
+				}
+			});
+
 			finalizeDrag(item);
+
+			targetGridPosition.value = null;
+
+			setTimeout(() => {
+				nextTick(() => {
+					updateLayout(null, false, null, itemId);
+				});
+			}, 50);
 		}
 	},
 });
@@ -127,15 +138,38 @@ const {
 	updateLayout,
 	updateGhostPosition,
 	finalizeDrag,
+	getItemAtPosition,
 } = useMasonryLayout(items, gridLayoutRef, gutter.value);
 
+const displacedItemId = computed(() => {
+	if (!targetGridPosition.value || !gridLayoutRef.value) return null;
+
+	const item = getItemAtPosition(
+		targetGridPosition.value.row,
+		targetGridPosition.value.col,
+		draggingItem.value
+	);
+
+	if (item && item.id !== draggingItem.value?.id) {
+		item.wasDisplaced = true;
+		return item.id;
+	}
+
+	return null;
+});
+
 const updateTargetGridPosition = (mouseX, mouseY, dragItem) => {
-	if (!cellSize.value) return;
+	if (!cellSize.value || mouseX == null || mouseY == null || !dragItem) return;
 
 	const snapToGridSize = cellSize.value + gutter.value;
 
-	const col = Math.floor(mouseX / snapToGridSize);
-	const row = Math.floor(mouseY / snapToGridSize);
+	const numericMouseX = Number(mouseX);
+	const numericMouseY = Number(mouseY);
+
+	if (isNaN(numericMouseX) || isNaN(numericMouseY)) return;
+
+	const col = Math.floor(numericMouseX / snapToGridSize);
+	const row = Math.floor(numericMouseY / snapToGridSize);
 
 	const validCol = Math.min(
 		Math.max(0, col),
@@ -143,61 +177,43 @@ const updateTargetGridPosition = (mouseX, mouseY, dragItem) => {
 	);
 	const validRow = Math.max(0, row);
 
-	if (
-		!targetGridPosition.value ||
-		targetGridPosition.value.col !== validCol ||
-		targetGridPosition.value.row !== validRow
-	) {
-		const newPosition = {
-			col: validCol,
-			row: validRow,
-			colSpan: dragItem.colSpan || 1,
-			rowSpan: dragItem.rowSpan || 1,
-			id: dragItem.id,
-		};
+	const newPosition = {
+		col: validCol,
+		row: validRow,
+		colSpan: dragItem.colSpan || 1,
+		rowSpan: dragItem.rowSpan || 1,
+		id: dragItem.id,
+	};
 
-		const isAvailable = checkPositionAvailability(newPosition, dragItem.id);
+	targetGridPosition.value = { ...newPosition };
 
-		if (isAvailable) {
-			targetGridPosition.value = newPosition;
-			updateGhostPosition(newPosition);
-		}
-	}
-};
-
-const checkPositionAvailability = (position, excludeItemId) => {
-	if (!position || !gridLayoutRef.value) return false;
-
-	const conflicts = items.filter((item) => {
-		if (item.id === excludeItemId) return false;
-
-		const itemCol = Math.floor(
-			parseInt(item.style.left || 0) / (cellSize.value + gutter.value)
-		);
-		const itemRow = Math.floor(
-			parseInt(item.style.top || 0) / (cellSize.value + gutter.value)
-		);
-		const itemColSpan = item.colSpan || 1;
-		const itemRowSpan = item.rowSpan || 1;
-
-		const horizontalOverlap =
-			position.col < itemCol + itemColSpan &&
-			position.col + position.colSpan > itemCol;
-
-		const verticalOverlap =
-			position.row < itemRow + itemRowSpan &&
-			position.row + position.rowSpan > itemRow;
-
-		return horizontalOverlap && verticalOverlap;
+	nextTick(() => {
+		updateGhostPosition(newPosition);
 	});
-
-	return conflicts.length === 0;
 };
+
+const showGhostIndicator = computed(() => {
+	return (
+		targetGridPosition.value &&
+		cellSize.value > 0 &&
+		isGrabbing.value &&
+		draggingItem.value
+	);
+});
 
 const getGhostIndicatorStyle = () => {
 	if (!targetGridPosition.value || !cellSize.value) return {};
 
-	const { col, row, colSpan, rowSpan } = targetGridPosition.value;
+	const { col, row, colSpan = 1, rowSpan = 1 } = targetGridPosition.value;
+
+	if (
+		col == null ||
+		row == null ||
+		!Number.isFinite(col) ||
+		!Number.isFinite(row)
+	) {
+		return {};
+	}
 
 	return {
 		position: "absolute",
@@ -205,11 +221,9 @@ const getGhostIndicatorStyle = () => {
 		top: `${row * (cellSize.value + gutter.value)}px`,
 		width: `${colSpan * cellSize.value + (colSpan - 1) * gutter.value}px`,
 		height: `${rowSpan * cellSize.value + (rowSpan - 1) * gutter.value}px`,
-		backgroundColor: "rgba(100, 100, 255, 0.2)",
-		border: "2px dashed rgba(100, 100, 255, 0.6)",
-		borderRadius: "8px",
+		zIndex: 60,
+		opacity: 0.9,
 		pointerEvents: "none",
-		zIndex: 50,
 	};
 };
 
@@ -233,6 +247,30 @@ const getComponentType = (item) => {
 };
 
 const getItemStyle = (item) => {
+	if (item.id === displacedItemId.value) {
+		return {
+			...item.style,
+			position: "absolute",
+			zIndex: 90,
+			transition: "all 0.2s ease",
+			boxShadow: "0 0 0 3px rgba(0, 100, 255, 0.7)",
+			opacity: 0.9,
+		};
+	}
+	const wasDisplaced = item.wasDisplaced;
+	if (wasDisplaced) {
+		setTimeout(() => {
+			item.wasDisplaced = false;
+		}, 300);
+
+		return {
+			...item.style,
+			position: "absolute",
+			transition: "all 0.3s ease",
+			boxShadow: "none",
+		};
+	}
+
 	if (item.isDragging) {
 		return {
 			position: "absolute",
@@ -242,39 +280,92 @@ const getItemStyle = (item) => {
 			height: item.style.height,
 			zIndex: 100,
 			pointerEvents: "none",
-			transform: "scale(1.02)",
-			boxShadow: "0 10px 20px rgba(0, 0, 0, 0.2)",
+			transform: "scale(1.05)",
+			boxShadow: "0 10px 25px rgba(0, 0, 0, 0.25)",
 			background: item.style.background ? item.style.background : "white",
-			opacity: 0.95,
+			opacity: 0.8,
 		};
 	}
 
 	return {
 		...item.style,
 		position: "absolute",
+		transition: item.style.transition || "none",
 	};
 };
 
-const onMouseDown = (event, item) => startDrag(item, event);
-const onMouseMove = (event) => processDrag(event, gridLayoutRef.value);
-const onMouseUp = () => endDrag();
-const onMouseLeave = () => endDrag();
+const onMouseDown = (event, item) => {
+	try {
+		startDrag(item, event);
+	} catch (error) {
+		console.error("Error en onMouseDown:", error);
+	}
+};
+
+const onMouseMove = (event) => {
+	try {
+		processDrag(event, gridLayoutRef.value);
+	} catch (error) {
+		console.error("Error en onMouseMove:", error);
+	}
+};
+
+const onMouseUp = () => {
+	try {
+		endDrag();
+
+		nextTick(() => {
+			items.forEach((item) => {
+				if (item.wasDisplaced && !item.isDragging) {
+					setTimeout(() => {
+						item.wasDisplaced = false;
+					}, 300);
+				}
+			});
+		});
+	} catch (error) {
+		console.error("Error en onMouseUp:", error);
+		resetDragState();
+	}
+};
+const onMouseLeave = () => {
+	try {
+		endDrag();
+	} catch (error) {
+		console.error("Error en onMouseLeave:", error);
+		resetDragState();
+	}
+};
 
 const resizeObserver = new ResizeObserver(() => calculateResponsiveLayout());
 
 onMounted(() => {
 	nextTick(() => {
-		if (gridLayoutRef.value) {
-			calculateResponsiveLayout();
-			resizeObserver.observe(gridLayoutRef.value);
-		}
+		calculateResponsiveLayout();
+
+		window.addEventListener("mousemove", onMouseMove);
+		window.addEventListener("mouseup", onMouseUp);
+
+		window.addEventListener("error", () => {
+			if (isGrabbing.value) {
+				resetDragState();
+				updateLayout(null, true);
+			}
+		});
 	});
+
+	if (gridLayoutRef.value) {
+		resizeObserver.observe(gridLayoutRef.value);
+	}
 });
 
 onUnmounted(() => {
-	if (gridLayoutRef.value) {
-		resizeObserver.unobserve(gridLayoutRef.value);
-	}
+	window.removeEventListener("mousemove", onMouseMove);
+	window.removeEventListener("mouseup", onMouseUp);
+
+	if (gridLayoutRef.value) resizeObserver.unobserve(gridLayoutRef.value);
+
+	window.removeEventListener("error", resetDragState);
 });
 </script>
 
@@ -309,8 +400,24 @@ onUnmounted(() => {
 }
 
 .grid-ghost-indicator {
+	position: absolute;
 	transition: all 0.15s ease;
 	z-index: 50;
+	background-color: rgba(0, 100, 255, 0.2);
+	border-radius: 8px;
+	box-sizing: border-box;
+	pointer-events: none;
+	box-shadow: 0 0 10px rgba(0, 100, 255, 0.3);
+	animation: pulse 1.5s infinite alternate;
+}
+
+@keyframes pulse {
+	0% {
+		opacity: 0.5;
+	}
+	100% {
+		opacity: 1;
+	}
 }
 
 @media (max-width: 1200px) {
