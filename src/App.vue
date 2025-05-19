@@ -1,9 +1,9 @@
 <template>
-	<div class="wrap debug" :class="{ grabbing: isGrabbing }">
+	<div class="wrap" :class="{ grabbing: isGrabbing }">
 		<div class="cursor" ref="cursorRef" :style="cursorStyle"></div>
-		<div class="grid-container debug">
+		<div class="grid-container">
 			<div
-				class="grid-layout debug"
+				class="grid-layout"
 				ref="gridLayoutRef"
 				@mousemove="onMouseMove"
 				@mouseup="onMouseUp"
@@ -110,51 +110,12 @@ const {
 		};
 
 		updateTargetGridPosition(relativeX, relativeY, item);
-
-		//eslinkt-disable-next-line
-		console.log(`Cursor position: X=${relativeX}, Y=${relativeY}`);
-
-		const draggedIndex = items.findIndex((i) => i.id === item.id);
-		const targetIndex = findClosestItemIndex(
-			relativeX,
-			relativeY,
-			items,
-			gridLayoutRef.value,
-			item.id
-		);
-
-		//eslinkt-disable-next-line
-		console.log(
-			`Índice actual: ${draggedIndex}, Índice objetivo: ${targetIndex}`
-		);
-
-		if (
-			draggedIndex !== targetIndex &&
-			targetIndex >= 0 &&
-			targetIndex < items.length
-		) {
-			console.log(`Reordenando: ${draggedIndex} -> ${targetIndex}`);
-
-			moveArrayItem(items, draggedIndex, targetIndex);
-
-			nextTick(() => {
-				calculateResponsiveLayout();
-				console.log("Layout actualizado después de reordenar");
-			});
-		}
 	},
 	onDragEnd: (item) => {
 		if (item) {
-			console.log("Drag ended on item:", item.id);
 			delete item.originalPosition;
+			finalizeDrag(item);
 		}
-
-		targetGridPosition.value = null;
-
-		nextTick(() => {
-			updateLayout();
-			console.log("Layout actualizado después de soltar");
-		});
 	},
 });
 
@@ -164,13 +125,17 @@ const {
 	cellSize,
 	calculateResponsiveLayout,
 	updateLayout,
+	updateGhostPosition,
+	finalizeDrag,
 } = useMasonryLayout(items, gridLayoutRef, gutter.value);
 
 const updateTargetGridPosition = (mouseX, mouseY, dragItem) => {
 	if (!cellSize.value) return;
 
-	const col = Math.floor(mouseX / (cellSize.value + gutter.value));
-	const row = Math.floor(mouseY / (cellSize.value + gutter.value));
+	const snapToGridSize = cellSize.value + gutter.value;
+
+	const col = Math.floor(mouseX / snapToGridSize);
+	const row = Math.floor(mouseY / snapToGridSize);
 
 	const validCol = Math.min(
 		Math.max(0, col),
@@ -178,12 +143,55 @@ const updateTargetGridPosition = (mouseX, mouseY, dragItem) => {
 	);
 	const validRow = Math.max(0, row);
 
-	targetGridPosition.value = {
-		col: validCol,
-		row: validRow,
-		colSpan: dragItem.colSpan || 1,
-		rowSpan: dragItem.rowSpan || 1,
-	};
+	if (
+		!targetGridPosition.value ||
+		targetGridPosition.value.col !== validCol ||
+		targetGridPosition.value.row !== validRow
+	) {
+		const newPosition = {
+			col: validCol,
+			row: validRow,
+			colSpan: dragItem.colSpan || 1,
+			rowSpan: dragItem.rowSpan || 1,
+			id: dragItem.id,
+		};
+
+		const isAvailable = checkPositionAvailability(newPosition, dragItem.id);
+
+		if (isAvailable) {
+			targetGridPosition.value = newPosition;
+			updateGhostPosition(newPosition);
+		}
+	}
+};
+
+const checkPositionAvailability = (position, excludeItemId) => {
+	if (!position || !gridLayoutRef.value) return false;
+
+	const conflicts = items.filter((item) => {
+		if (item.id === excludeItemId) return false;
+
+		const itemCol = Math.floor(
+			parseInt(item.style.left || 0) / (cellSize.value + gutter.value)
+		);
+		const itemRow = Math.floor(
+			parseInt(item.style.top || 0) / (cellSize.value + gutter.value)
+		);
+		const itemColSpan = item.colSpan || 1;
+		const itemRowSpan = item.rowSpan || 1;
+
+		const horizontalOverlap =
+			position.col < itemCol + itemColSpan &&
+			position.col + position.colSpan > itemCol;
+
+		const verticalOverlap =
+			position.row < itemRow + itemRowSpan &&
+			position.row + position.rowSpan > itemRow;
+
+		return horizontalOverlap && verticalOverlap;
+	});
+
+	return conflicts.length === 0;
 };
 
 const getGhostIndicatorStyle = () => {
