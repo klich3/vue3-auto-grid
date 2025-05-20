@@ -1,70 +1,51 @@
 [
 	{
-		"id": "0",
-		"style": { "width": "576px", "height": "280px", "background": "black" },
-		"type": "user",
-		"userData": {
-			"name": "Anton Sychev",
-			"description": "Desarrollador Full Stack"
-		}
+		"id": "7",
+		"style": { "width": "280px", "height": "280px", "background": "white" },
+		"type": "glb"
 	},
 	{
 		"id": "1",
-		"style": { "width": "576px", "height": "280px", "background": "red" },
+		"style": { "width": "280px", "height": "576px", "background": "black" },
 		"type": "image",
 		"imageData": {
-			"src": "https://picsum.photos/576/280?random=1",
-			"alt": "Imagen 1",
-			"caption": "Imagen panorámica 1"
+			"src": "https://picsum.photos/280/576?random=4",
+			"alt": "Imagen random 1",
+			"caption": "Random Image 1"
+		}
+	},
+	{
+		"id": "2",
+		"style": { "width": "280px", "height": "280px", "background": "black" },
+		"type": "image",
+		"imageData": {
+			"src": "https://picsum.photos/280/280?random=5",
+			"alt": "Imagen 2",
+			"caption": "Random Image 2"
 		}
 	},
 	{
 		"id": "3",
-		"style": { "width": "280px", "height": "576px", "background": "green" },
-		"type": "image",
-		"imageData": {
-			"src": "https://picsum.photos/280/576?random=2",
-			"alt": "Imagen 2",
-			"caption": "Imagen vertical"
-		}
-	},
-	{
-		"id": "10",
-		"style": { "width": "280px", "height": "280px", "background": "pink" },
-		"type": "image",
-		"imageData": {
-			"src": "https://picsum.photos/576/280?random=3",
-			"alt": "Imagen 3"
-		}
-	},
-
-	{
-		"id": "6",
-		"style": { "width": "280px", "height": "576px", "background": "grey" },
-		"type": "image",
-		"imageData": {
-			"src": "https://picsum.photos/280/576?random=4",
-			"alt": "Imagen 4",
-			"caption": "Foto vertical 2"
-		}
-	},
-	{
-		"id": "7",
 		"style": { "width": "576px", "height": "280px", "background": "black" },
 		"type": "image",
 		"imageData": {
-			"src": "https://picsum.photos/576/280?random=5",
-			"alt": "Imagen 5",
-			"caption": "Panorámica oscura"
+			"src": "https://picsum.photos/576/280?random=6",
+			"alt": "Random Image 3"
 		}
 	},
 	{
-		"id": "8",
+		"id": "4",
 		"style": { "width": "576px", "height": "280px", "background": "white" },
-		"type": "image",
-		"imageData": {
-			"src": "https://picsum.photos/576/280?random=6",
-			"alt": "Imagen 6"
-		}
+		"type": "user"
+	},
+	{
+		"id": "5",
+		"style": { "width": "280px", "height": "280px", "background": "white" },
+		"type": "map"
+	},
+	{
+		"id": "6",
+		"style": { "width": "280px", "height": "280px", "background": "black" },
+		"type": "github"
 	}
 ]

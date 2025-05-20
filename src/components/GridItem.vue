@@ -26,7 +26,6 @@ const props = defineProps({
 	style: Object,
 });
 
-// Computar estilos combinados
 const mergedStyle = computed(() => {
 	if (!props.isDragging) {
 		return {
@@ -43,7 +42,6 @@ const mergedStyle = computed(() => {
 	};
 });
 
-// Computar clases dinámicamente
 const classList = computed(() => [
 	"grid-item",
 	{
@@ -68,8 +66,8 @@ const classList = computed(() => [
 	max-height: 100%;
 	border: 1px solid rgba(0, 0, 0, 0.1);
 	-webkit-user-drag: none;
-	will-change: transform, opacity; /* Optimización de rendimiento */
-	backface-visibility: hidden; /* Mejora para renderizado */
+	will-change: transform, opacity;
+	backface-visibility: hidden;
 }
 
 .grid-item.dragging {

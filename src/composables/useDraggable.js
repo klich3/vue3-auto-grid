@@ -17,16 +17,31 @@ export function useDraggable(options = {}) {
 	const draggingItem = ref(null);
 	const isGrabbing = ref(false);
 	const cursorPosition = ref({ x: 0, y: 0 });
+	const initialCursorPosition = ref({ x: 0, y: 0 });
 	const ghostPosition = ref({ left: 0, top: 0 });
 	const dragOffset = ref({ x: 0, y: 0 });
+	const dragInitiated = ref(false);
+	const dragStartTimer = ref(null);
 
-	const startDrag = (item, event) => {
+	//Note: Motion pixels to initiate dragging
+	const DRAG_THRESHOLD = options.dragThreshold || 5;
+
+	//Note: Milliseconds before the start of the trace
+	const DRAG_DELAY = options.dragDelay || 150;
+
+	const startDragProcess = (item, event) => {
 		if (!item || !event) return;
 
 		try {
-			draggingItem.value = item;
-			item.isDragging = true;
-			isGrabbing.value = true;
+			initialCursorPosition.value = {
+				x: event.clientX,
+				y: event.clientY,
+			};
+
+			cursorPosition.value = {
+				x: event.clientX,
+				y: event.clientY,
+			};
 
 			const rect = event.currentTarget?.getBoundingClientRect();
 			if (!rect) return;
@@ -36,24 +51,46 @@ export function useDraggable(options = {}) {
 				y: event.clientY - rect.top,
 			};
 
-			cursorPosition.value = {
-				x: event.clientX,
-				y: event.clientY,
-			};
+			draggingItem.value = item;
 
-			if (options.onDragStart && typeof options.onDragStart === "function") {
-				options.onDragStart(item);
-			}
+			dragStartTimer.value = setTimeout(() => {
+				if (!dragInitiated.value) cancelDragAttempt();
+			}, DRAG_DELAY);
 		} catch (error) {
-			console.error("Error en startDrag:", error);
-			if (item) item.isDragging = false;
-			draggingItem.value = null;
-			isGrabbing.value = false;
+			console.error("Error en startDragProcess:", error);
+			cancelDragAttempt();
 		}
 	};
 
+	const checkDragThreshold = (event) => {
+		if (!draggingItem.value || !event || dragInitiated.value) return;
+
+		const dx = event.clientX - initialCursorPosition.value.x;
+		const dy = event.clientY - initialCursorPosition.value.y;
+		const distance = Math.sqrt(dx * dx + dy * dy);
+
+		if (distance > DRAG_THRESHOLD) {
+			clearTimeout(dragStartTimer.value);
+			initiateDrag(draggingItem.value, event);
+		}
+	};
+
+	const initiateDrag = (item, event) => {
+		if (!item || dragInitiated.value) return;
+
+		dragInitiated.value = true;
+		item.isDragging = true;
+		isGrabbing.value = true;
+
+		if (options.onDragStart && typeof options.onDragStart === "function") {
+			options.onDragStart(item, event);
+		}
+	};
+
+	const startDrag = (item, event) => startDragProcess(item, event);
+
 	const processDrag = (event, container) => {
-		if (!draggingItem.value || !isGrabbing.value || !event) return;
+		if (!draggingItem.value || !event) return;
 
 		try {
 			cursorPosition.value = {
@@ -61,38 +98,66 @@ export function useDraggable(options = {}) {
 				y: event.clientY,
 			};
 
-			if (options.onDrag && typeof options.onDrag === "function") {
-				options.onDrag(draggingItem.value, event);
+			if (!dragInitiated.value) checkDragThreshold(event);
+
+			if (dragInitiated.value && isGrabbing.value) {
+				if (options.onDrag && typeof options.onDrag === "function") {
+					options.onDrag(draggingItem.value, event);
+				}
 			}
 		} catch (error) {
 			console.error("Error en processDrag:", error);
 		}
 	};
 
+	const cancelDragAttempt = () => {
+		if (dragStartTimer.value) {
+			clearTimeout(dragStartTimer.value);
+			dragStartTimer.value = null;
+		}
+
+		if (!dragInitiated.value) draggingItem.value = null;
+	};
+
 	const endDrag = () => {
+		if (dragStartTimer.value) {
+			clearTimeout(dragStartTimer.value);
+			dragStartTimer.value = null;
+		}
+
+		if (!dragInitiated.value) {
+			draggingItem.value = null;
+			return;
+		}
+
 		if (!draggingItem.value) return;
 
 		try {
 			const item = draggingItem.value;
 			item.isDragging = false;
 
-			if (options.onDragEnd && typeof options.onDragEnd === "function") {
+			if (options.onDragEnd && typeof options.onDragEnd === "function")
 				options.onDragEnd(item);
-			}
 		} catch (error) {
 			console.error("Error en endDrag:", error);
 		} finally {
 			draggingItem.value = null;
 			isGrabbing.value = false;
+			dragInitiated.value = false;
 		}
 	};
 
 	const resetDragState = () => {
-		if (draggingItem.value) {
-			draggingItem.value.isDragging = false;
+		if (dragStartTimer.value) {
+			clearTimeout(dragStartTimer.value);
+			dragStartTimer.value = null;
 		}
+
+		if (draggingItem.value) draggingItem.value.isDragging = false;
+
 		draggingItem.value = null;
 		isGrabbing.value = false;
+		dragInitiated.value = false;
 	};
 
 	return {
@@ -101,9 +166,11 @@ export function useDraggable(options = {}) {
 		cursorPosition,
 		ghostPosition,
 		dragOffset,
+		dragInitiated,
 		startDrag,
 		processDrag,
 		endDrag,
 		resetDragState,
+		cancelDragAttempt,
 	};
 }

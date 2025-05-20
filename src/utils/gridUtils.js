@@ -23,11 +23,6 @@ export function findClosestItemIndex(x, y, items, container, excludeId) {
 
 	const gridItems = Array.from(container.querySelectorAll(".grid-item"));
 
-	//eslint-disable-next-line no-console
-	console.log(`Buscando elemento más cercano a (${x}, ${y})`);
-	//eslint-disable-next-line no-console
-	console.log(`Elementos disponibles: ${gridItems.length}`);
-
 	items.forEach((item, index) => {
 		if (item.id === excludeId) return;
 
@@ -47,21 +42,12 @@ export function findClosestItemIndex(x, y, items, container, excludeId) {
 			Math.pow(x - itemCenterX, 2) + Math.pow(y - itemCenterY, 2)
 		);
 
-		//eslint-disable-next-line no-console
-		console.log(
-			`Ítem ${item.id}: distancia = ${distance}, centro en (${itemCenterX}, ${itemCenterY})`
-		);
-
 		if (distance < minDistance) {
 			minDistance = distance;
 			closestIndex = index;
 		}
 	});
 
-	//eslint-disable-next-line no-console
-	console.log(
-		`Elemento más cercano encontrado en índice: ${closestIndex}, distancia: ${minDistance}`
-	);
 	return closestIndex;
 }
 

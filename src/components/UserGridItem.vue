@@ -1,70 +1,104 @@
 <template>
-    <div class="user-grid-item">
-        <div class="user-avatar">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
-                <path fill="none" d="M0 0h24v24H0z" />
-                <path
-                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"
-                    fill="currentColor" />
-            </svg>
-        </div>
-        <div class="user-info">
-            <h3>{{ userData.name }}</h3>
-            <p>{{ userData.description }}</p>
-        </div>
-    </div>
+	<div
+		class="w-full h-full p-4 rounded-xl bg-gradient-to-br from-white to-gray-50 shadow-md hover:shadow-lg transition-all duration-300"
+		:class="{ 'p-3': isCompact }"
+	>
+		<div class="flex flex-col h-full gap-3">
+			<div
+				class="flex items-center gap-4"
+				:class="{ 'flex-col text-center': isCompact }"
+			>
+				<div class="relative">
+					<img
+						:src="userData?.avatar || defaultAvatar"
+						:alt="`Avatar de ${userData?.name || 'Usuario'}`"
+						class="w-[70px] h-[70px] rounded-full object-cover border-3 border-white shadow-sm transition-transform duration-300 hover:scale-105"
+						:class="{ 'w-[60px] h-[60px]': isCompact }"
+						@error="handleImageError"
+					/>
+					<span
+						v-if="userData?.status"
+						class="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white"
+						:class="{
+							'bg-green-500': userData.status === 'online',
+							'bg-gray-400': userData.status === 'offline',
+							'bg-yellow-400': userData.status === 'away',
+						}"
+					></span>
+				</div>
+				<div class="flex-1">
+					<h1
+						class="text-lg font-semibold text-gray-800 leading-tight m-0"
+						:class="{ 'text-base': isCompact }"
+					>
+						{{ userData?.name || "Usuario" }}
+					</h1>
+					<h5
+						class="text-sm font-medium text-gray-500 opacity-80 mt-1 m-0"
+						:class="{ 'text-xs': isCompact }"
+					>
+						{{ userData?.role || "Sin rol asignado" }}
+					</h5>
+				</div>
+			</div>
+
+			<div v-if="userData?.bio" class="pt-1">
+				<p
+					class="m-0 text-sm leading-relaxed text-gray-600 line-clamp-3"
+					:class="{ 'text-xs line-clamp-2': isCompact }"
+				>
+					{{ userData.bio }}
+				</p>
+			</div>
+
+			<div v-if="userData?.stats" class="flex justify-around gap-3 py-2">
+				<div
+					v-for="(value, key) in userData.stats"
+					:key="key"
+					class="flex flex-col items-center text-center"
+				>
+					<span class="text-base font-semibold text-gray-800">{{ value }}</span>
+					<span class="text-xs uppercase text-gray-500">{{ key }}</span>
+				</div>
+			</div>
+		</div>
+	</div>
 </template>
 
 <script setup>
-defineProps({
-    userData: {
-        type: Object,
-        default: () => ({
-            name: 'Usuario',
-            description: 'Información del usuario'
-        })
-    }
+import { ref } from "vue";
+
+const props = defineProps({
+	userData: {
+		type: Object,
+		default: () => ({
+			name: "Anton Sychev",
+			role: "Full Stack Developer",
+			bio: "Full Stack Developer and CTO with more than 25 years of programming experience (I started in 1996). Passionate about technology, self-taught and constantly learning.",
+			avatar: "/images/avatar.png",
+			status: "online",
+			stats: {
+				proyectos: 120,
+				seguidores: 1250,
+				años: 25,
+			},
+		}),
+	},
+	isCompact: {
+		type: Boolean,
+		default: false,
+	},
+	showActions: {
+		type: Boolean,
+		default: true,
+	},
+	primaryAction: String,
+	secondaryAction: String,
 });
+
+const defaultAvatar = ref("/images/default-avatar.png");
+
+const handleImageError = (e) => {
+	e.target.src = defaultAvatar.value;
+};
 </script>
-
-<style scoped>
-.user-grid-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    padding: 20px;
-    text-align: center;
-    color: #000;
-}
-
-.user-avatar {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    background-color: #e0e0e0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 15px;
-}
-
-.user-avatar svg {
-    width: 60%;
-    height: 60%;
-    color: #555;
-}
-
-.user-info h3 {
-    margin: 0;
-    font-size: 1.2rem;
-    font-weight: 600;
-}
-
-.user-info p {
-    margin: 5px 0 0;
-    font-size: 0.9rem;
-    color: #666;
-}
-</style>
