@@ -8,8 +8,6 @@ Created:  2024-07-08 17:40:31
 Desc: Main entry point
 */
 
-import "normalize.css";
-import "960.css";
 import "@/assets/style.css";
 
 import { createApp } from "vue";

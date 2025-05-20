@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import path from "path";
 import ViteRequireContext from "@originjs/vite-plugin-require-context";
+import tailwindcss from "@tailwindcss/vite";
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -56,5 +57,5 @@ export default defineConfig({
 	optimizeDeps: {
 		exclude: ["worker"],
 	},
-	plugins: [ViteRequireContext, vue()],
+	plugins: [ViteRequireContext, vue(), tailwindcss()],
 });

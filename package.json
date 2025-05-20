@@ -29,14 +29,16 @@
 	"author": "Anton Sychev <anton at sychev dot xyz> (https://sychev.xyz)",
 	"license": "MIT",
 	"dependencies": {
-		"normalize.css": "^8.0.1",
+		"@tailwindcss/vite": "^4.1.7",
+		"leaflet": "^1.9.4",
+		"tailwindcss": "^4.1.7",
+		"three": "^0.176.0",
 		"vue": "^3.3.4"
 	},
 	"devDependencies": {
 		"@originjs/vite-plugin-require-context": "^1.0.9",
 		"@vitejs/plugin-vue": "^5.1.1",
 		"@vue/compiler-sfc": "^3.2.31",
-		"960.css": "^1.0.4",
 		"autoprefixer": "^10.4.19",
 		"credits-log": "^1.0.2",
 		"postcss": "^8.4.24",
@@ -44,7 +46,7 @@
 		"rollup-plugin-uglify": "^4.0.0",
 		"sass": "^1.77.6",
 		"unplugin-auto-import": "^0.18.2",
-		"vite": "^5.3.5",
+		"vite": "^6.3.5",
 		"vite-plugin-style-import": "^2.0.0",
 		"vue-loader": "^17.0.0",
 		"vue-stripe-js": "^1.0.0",

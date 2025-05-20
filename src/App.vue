@@ -16,13 +16,9 @@
 						:style="getItemStyle(item)"
 						:data-key="item.id"
 						class="grid-item"
-						@mousedown.stop.prevent="onMouseDown($event, item)"
+						@mousedown.prevent="onMouseDown($event, item)"
 					>
-						<component
-							:is="getComponentType(item)"
-							:userData="item.userData"
-							:imageData="item.imageData"
-						/>
+						<component :is="getComponentType(item)" v-bind="item" />
 					</grid-item>
 				</transition-group>
 
@@ -35,7 +31,6 @@
 		</div>
 	</div>
 </template>
-
 <script setup>
 import {
 	ref,
@@ -46,13 +41,18 @@ import {
 	onUnmounted,
 	watch,
 } from "vue";
-import GridItem from "@/components/GridItem.vue";
-import UserGridItem from "@/components/UserGridItem.vue";
-import ImageGridItem from "@/components/ImageGridItem.vue";
 import { useDraggable } from "@/composables/useDraggable";
 import { useMasonryLayout } from "@/composables/useMasonryLayout";
 import { debounce } from "@/utils/gridUtils";
+
 import itemsData from "@/assets/items.json";
+import GridItem from "@/components/GridItem";
+
+import ImageGridItem from "@/components/ImageGridItem";
+import MapGridItem from "@/components/MapGridItem";
+import UserGridItem from "@/components/UserGridItem";
+import GithubGridItem from "@/components/GithubGridItem";
+import GlbGridItem from "@/components/GlbGridItem";
 
 const items = reactive(generateItemsWithTypes(itemsData));
 const cursorRef = ref(null);
@@ -60,7 +60,6 @@ const gridLayoutRef = ref(null);
 const gutter = ref(16);
 const targetGridPosition = ref(null);
 
-// Inicializar los elementos con sus tipos
 function generateItemsWithTypes(itemsData) {
 	return itemsData.map((item) => {
 		const width = parseInt(item.style.width);
@@ -78,11 +77,27 @@ function generateItemsWithTypes(itemsData) {
 	});
 }
 
+function getComponentType(item) {
+	switch (item.type) {
+		case "glb":
+			return GlbGridItem;
+		case "github":
+			return GithubGridItem;
+		case "map":
+			return MapGridItem;
+		case "user":
+			return UserGridItem;
+		case "image":
+			return ImageGridItem;
+		default:
+			return null;
+	}
+}
+
 const {
 	draggingItem,
 	isGrabbing,
 	cursorPosition,
-	ghostPosition,
 	dragOffset,
 	startDrag,
 	processDrag,
@@ -95,13 +110,11 @@ const {
 });
 
 const {
-	numColumns,
 	gridHeight,
 	cellSize,
 	calculateResponsiveLayout,
 	updateLayout,
 	updateGhostPosition,
-	finalizeDrag,
 	finalizeDragAndLock,
 	getItemAtPosition,
 	pixelsToGridPosition,
@@ -133,32 +146,6 @@ const shouldShowGhostIndicator = computed(() => {
 		isGrabbing.value &&
 		draggingItem.value
 	);
-});
-
-const ghostIndicatorStyle = computed(() => {
-	if (!targetGridPosition.value || !cellSize.value) return {};
-
-	const { col, row, colSpan = 1, rowSpan = 1 } = targetGridPosition.value;
-
-	if (
-		col == null ||
-		row == null ||
-		!Number.isFinite(col) ||
-		!Number.isFinite(row)
-	) {
-		return {};
-	}
-
-	return {
-		position: "absolute",
-		left: `${col * (cellSize.value + gutter.value)}px`,
-		top: `${row * (cellSize.value + gutter.value)}px`,
-		width: `${colSpan * cellSize.value + (colSpan - 1) * gutter.value}px`,
-		height: `${rowSpan * cellSize.value + (rowSpan - 1) * gutter.value}px`,
-		zIndex: 60,
-		opacity: 0.9,
-		pointerEvents: "none",
-	};
 });
 
 const cursorStyle = computed(() => {
@@ -214,6 +201,12 @@ function cleanupDisplacedState() {
 	});
 }
 
+/**
+ * Updates the target grid position based on the mouse coordinates and the dragged item.
+ * @param mouseX {float} - The x-coordinate of the mouse position.
+ * @param mouseY  {float} - The y-coordinate of the mouse position.
+ * @param dragItem {Object} - The item being dragged.
+ */
 function updateTargetGridPosition(mouseX, mouseY, dragItem) {
 	if (!cellSize.value || mouseX == null || mouseY == null || !dragItem) return;
 
@@ -239,24 +232,48 @@ function updateTargetGridPosition(mouseX, mouseY, dragItem) {
 	nextTick(() => updateGhostPosition(targetGridPosition.value));
 }
 
-function getComponentType(item) {
-	switch (item.type) {
-		case "user":
-			return UserGridItem;
-		case "image":
-			return ImageGridItem;
-		default:
-			return null;
-	}
-}
+/**
+ * Style for the ghost indicator.
+ * @returns {Object} - The style object for the ghost indicator.
+ */
+const ghostIndicatorStyle = computed(() => {
+	if (!targetGridPosition.value || !cellSize.value) return {};
 
+	const { col, row, colSpan = 1, rowSpan = 1 } = targetGridPosition.value;
+
+	if (
+		col == null ||
+		row == null ||
+		!Number.isFinite(col) ||
+		!Number.isFinite(row)
+	) {
+		return {};
+	}
+
+	return {
+		position: "absolute",
+		left: `${col * (cellSize.value + gutter.value)}px`,
+		top: `${row * (cellSize.value + gutter.value)}px`,
+		width: `${colSpan * cellSize.value + (colSpan - 1) * gutter.value}px`,
+		height: `${rowSpan * cellSize.value + (rowSpan - 1) * gutter.value}px`,
+		zIndex: 60,
+		opacity: 0.9,
+		pointerEvents: "none",
+	};
+});
+
+/**
+ * Style for the grid item.
+ * In transition speeds are set for transitions
+ * @param {Object} item - The grid item object.
+ */
 function getItemStyle(item) {
 	if (item.id === displacedItemId.value) {
 		return {
 			...item.style,
 			position: "absolute",
 			zIndex: 90,
-			transition: "all 0.2s ease",
+			transition: "all 820ms ease-in-out",
 			boxShadow: "0 0 0 3px rgba(0, 100, 255, 0.7)",
 			opacity: 0.9,
 		};
@@ -266,7 +283,7 @@ function getItemStyle(item) {
 		return {
 			...item.style,
 			position: "absolute",
-			transition: "all 0.3s ease",
+			transition: "all 620ms ease-in-out",
 			boxShadow: item.wasDisplacedEnding
 				? "none"
 				: "0 0 0 2px rgba(0, 100, 255, 0.3)",
@@ -308,10 +325,62 @@ const onMouseUp = () => {
 
 const onMouseDown = (event, item) => {
 	try {
+		const isInteractiveElement = isInteractiveTarget(event.target);
+
+		if (isInteractiveElement) {
+			resetDragState();
+			return;
+		}
+
+		event.preventDefault();
+		event.stopPropagation();
+
 		startDrag(item, event);
 	} catch (error) {
 		console.error("Error en onMouseDown:", error);
 	}
+};
+
+const isInteractiveTarget = (target) => {
+	const interactiveSelectors = [
+		"button",
+		"a",
+		"input",
+		"select",
+		"textarea",
+		'[role="button"]',
+		'[role="link"]',
+		'[role="checkbox"]',
+		".interactive",
+		"[data-interactive]",
+	];
+
+	let currentElement = target;
+
+	while (currentElement) {
+		if (
+			interactiveSelectors.some(
+				(selector) => currentElement.matches && currentElement.matches(selector)
+			)
+		) {
+			return true;
+		}
+
+		if (currentElement.dataset && currentElement.dataset.interactive === "true")
+			return true;
+
+		currentElement = currentElement.parentElement;
+
+		if (
+			currentElement &&
+			currentElement.classList &&
+			currentElement.classList.contains("grid-item")
+		) {
+			break;
+		}
+	}
+
+	return false;
 };
 
 const onMouseMove = (event) => {
@@ -322,41 +391,9 @@ const onMouseMove = (event) => {
 	}
 };
 
-const onMouseLeave = () => {
-	try {
-		endDrag();
-	} catch (error) {
-		console.error("Error en onMouseLeave:", error);
-		resetDragState();
-	}
-};
-
 const resizeObserver = new ResizeObserver(
 	debounce(() => calculateResponsiveLayout(), 100)
 );
-
-onMounted(() => {
-	nextTick(() => {
-		calculateResponsiveLayout();
-		window.addEventListener("mousemove", onMouseMove);
-		window.addEventListener("mouseup", onMouseUp);
-		window.addEventListener("error", handleGlobalError);
-	});
-
-	if (gridLayoutRef.value) {
-		resizeObserver.observe(gridLayoutRef.value);
-	}
-});
-
-onUnmounted(() => {
-	window.removeEventListener("mousemove", onMouseMove);
-	window.removeEventListener("mouseup", onMouseUp);
-	window.removeEventListener("error", handleGlobalError);
-
-	if (gridLayoutRef.value) {
-		resizeObserver.unobserve(gridLayoutRef.value);
-	}
-});
 
 const handleGlobalError = () => {
 	if (isGrabbing.value) {
@@ -369,6 +406,27 @@ watch(
 	() => window.innerWidth,
 	debounce(() => calculateResponsiveLayout(), 200)
 );
+
+onMounted(() => {
+	nextTick(() => {
+		calculateResponsiveLayout();
+		window.addEventListener("mousemove", onMouseMove);
+		window.addEventListener("mouseup", onMouseUp);
+		window.addEventListener("error", handleGlobalError);
+	});
+
+	if (gridLayoutRef.value) resizeObserver.observe(gridLayoutRef.value);
+});
+
+onUnmounted(() => {
+	window.removeEventListener("mousemove", onMouseMove);
+	window.removeEventListener("mouseup", onMouseUp);
+	window.removeEventListener("error", handleGlobalError);
+
+	if (gridLayoutRef.value) {
+		resizeObserver.unobserve(gridLayoutRef.value);
+	}
+});
 </script>
 
 <style scoped>
@@ -386,7 +444,6 @@ watch(
 	min-height: 300px;
 }
 
-/* Transiciones */
 .grid-transition-move {
 	transition: transform 0.3s ease;
 }
@@ -402,7 +459,6 @@ watch(
 	transform: scale(0.9);
 }
 
-/* Indicador fantasma */
 .grid-ghost-indicator {
 	position: absolute;
 	transition: all 0.15s ease;
@@ -424,7 +480,6 @@ watch(
 	}
 }
 
-/* Diseño responsivo */
 @media (max-width: 1200px) {
 	.grid-container {
 		max-width: 960px;

@@ -7,6 +7,7 @@ import ViteRequireContext from "@originjs/vite-plugin-require-context";
 import stripCode from "rollup-plugin-strip-code";
 import creditslog from "credits-log";
 import { splitVendorChunkPlugin } from "vite";
+import tailwindcss from "@tailwindcss/vite";
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -53,6 +54,7 @@ export default defineConfig({
 	plugins: [
 		ViteRequireContext,
 		vue(),
+		tailwindcss(),
 		splitVendorChunkPlugin(),
 		stripCode({
 			start_comment: "develblock:start",
