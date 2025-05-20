@@ -9,7 +9,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, watch } from "vue";
 import { useThree } from "@/composables/useThree";
-import Loading from "@/components/Loading";
+import Loading from "@/components/UI/Loading.vue";
 
 const props = defineProps({
 	modelPath: {

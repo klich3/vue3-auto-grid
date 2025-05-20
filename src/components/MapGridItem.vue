@@ -18,7 +18,7 @@ import { ref, onMounted, onBeforeUnmount, watch } from "vue";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-import Loading from "@/components/Loading";
+import Loading from "@/components/UI/Loading.vue";
 
 const props = defineProps({
 	mapData: {
