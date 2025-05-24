@@ -17,10 +17,10 @@ The idea is to create grid of squares in this example are 4 columns, and there a
 Moving an element creates a "Ghost" shadow that follows the dragged element and rearranges the grid.
 Element scales are taken into account when superimposing over grid elements.
 
-***Version sencilla***
+***Basic version***
 ![Preview](images/preview.gif)
 
-***Version compleja***
+***Complex version***
 ![Preview](images/preview2.gif)
 
 
