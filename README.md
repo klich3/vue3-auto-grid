@@ -1,14 +1,28 @@
 # Vue3 - Auto grid Sample
 
-Grid layout with Vue3 and CSS Grid. 
-This is a simple example of how to create a responsive grid layout using Vue3 and CSS Grid.
+Grid layout with Vue3 and CSS Grid.
 
-When moving you can see where the item passes through the grid.
+In releases there are several versions the first one is the simplest with simple and native components.
+The last version has already incorporated `composables` is structured in another way and has implemented `Tailwind` dependency.
 
+I have seen this reference website: https://nevflynn.com/?ref=sychev
+I liked it and decided to try to make my own version, it is not exactly the same but it has the same principle.
 
+The idea is to create grid of squares in this example are 4 columns, and there are elements like:
+* Box "1x1"
+* Horizontal rectangle "2x1"
+* Vertical rectangle "1x2"
+* It could be, a larger square "2x2".
+
+Moving an element creates a "Ghost" shadow that follows the dragged element and rearranges the grid.
+Element scales are taken into account when superimposing over grid elements.
+
+***Version sencilla***
 ![Preview](images/preview.gif)
 
-Reference web site: https://nevflynn.com/?ref=sychev
+***Version compleja***
+![Preview](images/preview2.gif)
+
 
 ## DEV
 
